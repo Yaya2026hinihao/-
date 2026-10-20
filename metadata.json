@@ -1,0 +1,6 @@
+{
+  "name": "HEBE SalesBoost AI - 美妆产品管理中心",
+  "description": "美妆客户公司后台BA培训学习系统【产品管理】核心模块：以产品为核心聚合产品信息、用户画像、产品卖点、销售金句、角色标签、搭配连带、配套课件/练习/考试与AI智能任务推荐。",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
