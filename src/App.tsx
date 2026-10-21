@@ -37,6 +37,7 @@ import { ExamListView } from './components/views/ExamListView';
 import { CoursewareListView } from './components/views/CoursewareListView';
 import { DigitalHumanView } from './components/sparring/DigitalHumanView';
 import { ScenarioScriptView } from './components/sparring/ScenarioScriptView';
+import { CrossSellingView } from './components/product/CrossSellingView';
 import { TagDimensionManageModal } from './components/sparring/TagDimensionManageModal';
 import { CheckCircle2, Sparkles, X } from 'lucide-react';
 
@@ -90,6 +91,10 @@ export default function App() {
 
   const [isRoleModalOpen, setIsRoleModalOpen] = useState(false);
 
+  // Script Navigation & Combination Prefill state
+  const [selectedScriptId, setSelectedScriptId] = useState<string | null>(null);
+  const [scriptPrefillCombo, setScriptPrefillCombo] = useState<ProductCombination | null>(null);
+
   // Toast feedback
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -120,6 +125,9 @@ export default function App() {
       list.push('考试任务管理');
     } else if (currentSection === 'courseware') {
       list.push('在线课件库');
+    } else if (currentSection === 'cross-selling') {
+      list.push('产品管理');
+      list.push('连带销售组合');
     } else if (currentSection === 'digital-humans') {
       list.push('AI陪练管理');
       list.push('数字人顾客');
@@ -151,16 +159,50 @@ export default function App() {
     const exists = scenarioScripts.some((s) => s.id === script.id);
     if (exists) {
       setScenarioScripts((prev) => prev.map((s) => (s.id === script.id ? script : s)));
-      showToast(`已成功保存场景剧本《${script.title}》及其产品组合关联`);
+      showToast(`已成功保存场景剧本《${script.title}》`);
     } else {
       setScenarioScripts((prev) => [script, ...prev]);
-      showToast(`新场景剧本《${script.title}》已创建并绑定产品组合`);
+      showToast(`新场景剧本《${script.title}》已创建并完成产品关联`);
     }
   };
 
   const handleDeleteScenarioScript = (id: string) => {
     setScenarioScripts((prev) => prev.filter((s) => s.id !== id));
     showToast('场景剧本已删除');
+  };
+
+  const handleSaveCombination = (combo: ProductCombination) => {
+    const exists = productCombinations.some((c) => c.id === combo.id);
+    if (exists) {
+      setProductCombinations((prev) => prev.map((c) => (c.id === combo.id ? combo : c)));
+      showToast(`已成功保存连带销售组合《${combo.name}》`);
+    } else {
+      setProductCombinations((prev) => [combo, ...prev]);
+      showToast(`新连带销售组合《${combo.name}》已创建`);
+    }
+  };
+
+  const handleDeleteCombination = (comboId: string) => {
+    const combo = productCombinations.find((c) => c.id === comboId);
+    setProductCombinations((prev) => prev.filter((c) => c.id !== comboId));
+    // 保护规则：删除组合绝不删除场景剧本或任务，将关联转为自定义搭配
+    setScenarioScripts((prev) =>
+      prev.map((sc) => {
+        if (sc.linkedCombination?.combinationId === comboId) {
+          return {
+            ...sc,
+            linkedCombination: {
+              ...sc.linkedCombination,
+              combinationId: undefined,
+              combinationName: '自定义搭配',
+              pairingType: 'custom',
+            },
+          };
+        }
+        return sc;
+      })
+    );
+    showToast(`已删除产品组合《${combo?.name || ''}》，相关场景剧本已自动转为自定义搭配保留`);
   };
 
   const handleSaveTagDimensions = (updatedDims: TagDimensionConfig[]) => {
@@ -278,6 +320,7 @@ export default function App() {
           }
         }}
         productCount={products.length}
+        combinationCount={productCombinations.length}
         digitalHumanCount={digitalHumans.length}
         scenarioScriptCount={scenarioScripts.length}
         onOpenTagManage={() => setIsTagModalOpen(true)}
@@ -348,6 +391,20 @@ export default function App() {
                     tagDimensions={tagDimensions}
                     onSaveDigitalHuman={handleSaveDigitalHuman}
                     onSaveScript={handleSaveScenarioScript}
+                    onNavigateToCrossSelling={() => {
+                      setSelectedProduct(null);
+                      setCurrentSection('cross-selling');
+                    }}
+                    onNavigateToScript={(scriptId) => {
+                      setSelectedProduct(null);
+                      if (scriptId) setSelectedScriptId(scriptId);
+                      setCurrentSection('scenario-scripts');
+                    }}
+                    onCreateScriptForCombo={(combo) => {
+                      setSelectedProduct(null);
+                      setScriptPrefillCombo(combo);
+                      setCurrentSection('scenario-scripts');
+                    }}
                   />
                 ) : (
                   <ProductList
@@ -447,6 +504,31 @@ export default function App() {
               </div>
             )}
 
+            {/* View 7.5: Cross-selling (连带销售组合管理) */}
+            {currentSection === 'cross-selling' && (
+              <div className="h-[calc(100vh-8.5rem)] -m-6 md:-m-8">
+                <CrossSellingView
+                  allProducts={products}
+                  combinations={productCombinations}
+                  scenarioScripts={scenarioScripts}
+                  onSaveCombination={handleSaveCombination}
+                  onDeleteCombination={handleDeleteCombination}
+                  onNavigateToProduct={(p) => {
+                    setSelectedProduct(p);
+                    setCurrentSection('products');
+                  }}
+                  onNavigateToScript={(scriptId) => {
+                    if (scriptId) setSelectedScriptId(scriptId);
+                    setCurrentSection('scenario-scripts');
+                  }}
+                  onCreateScriptForCombo={(combo) => {
+                    setScriptPrefillCombo(combo);
+                    setCurrentSection('scenario-scripts');
+                  }}
+                />
+              </div>
+            )}
+
             {/* View 8: Scenario Scripts (AI 陪练场景剧本) */}
             {currentSection === 'scenario-scripts' && (
               <div className="h-[calc(100vh-8.5rem)] -m-6 md:-m-8">
@@ -458,11 +540,15 @@ export default function App() {
                   onSaveScript={handleSaveScenarioScript}
                   onDeleteScript={handleDeleteScenarioScript}
                   onOpenTagManage={() => setIsTagModalOpen(true)}
+                  onSaveCombination={handleSaveCombination}
                   onNavigateToProduct={(p) => {
                     setSelectedProduct(p);
                     setCurrentSection('products');
                   }}
                   onOpenTaskPublish={handleOpenTaskPublish}
+                  initialSelectedScriptId={selectedScriptId || undefined}
+                  initialPrefillCombo={scriptPrefillCombo}
+                  onClearInitialPrefill={() => setScriptPrefillCombo(null)}
                 />
               </div>
             )}

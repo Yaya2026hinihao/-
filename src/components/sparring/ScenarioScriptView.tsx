@@ -43,8 +43,12 @@ interface ScenarioScriptViewProps {
   onSaveScript: (script: ScenarioScriptItem) => void;
   onDeleteScript: (id: string) => void;
   onOpenTagManage: () => void;
+  onSaveCombination?: (combo: ProductCombination) => void;
   onNavigateToProduct?: (p: Product) => void;
   onOpenTaskPublish?: (product: Product, specificAsset?: any) => void;
+  initialSelectedScriptId?: string;
+  initialPrefillCombo?: ProductCombination | null;
+  onClearInitialPrefill?: () => void;
 }
 
 export const ScenarioScriptView: React.FC<ScenarioScriptViewProps> = ({
@@ -55,10 +59,16 @@ export const ScenarioScriptView: React.FC<ScenarioScriptViewProps> = ({
   onSaveScript,
   onDeleteScript,
   onOpenTagManage,
+  onSaveCombination,
   onNavigateToProduct,
   onOpenTaskPublish,
+  initialSelectedScriptId,
+  initialPrefillCombo,
+  onClearInitialPrefill,
 }) => {
-  const [selectedScriptId, setSelectedScriptId] = useState<string>(scripts[0]?.id || '');
+  const [selectedScriptId, setSelectedScriptId] = useState<string>(
+    initialSelectedScriptId || scripts[0]?.id || ''
+  );
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [comboFilter, setComboFilter] = useState('ALL');
@@ -77,11 +87,88 @@ export const ScenarioScriptView: React.FC<ScenarioScriptViewProps> = ({
     }
   }, [currentScript?.id]);
 
+  // Handle initialSelectedScriptId or initialPrefillCombo
+  React.useEffect(() => {
+    if (initialSelectedScriptId) {
+      setSelectedScriptId(initialSelectedScriptId);
+    }
+  }, [initialSelectedScriptId]);
+
+  React.useEffect(() => {
+    if (initialPrefillCombo) {
+      const mainP = products.find((p) => p.id === initialPrefillCombo.mainProductId);
+      const crossPs = products.filter((p) => initialPrefillCombo.crossSellingProductIds?.includes(p.id));
+      const newId = `sc-combo-${Date.now()}`;
+      const newScript: ScenarioScriptItem = {
+        id: newId,
+        title: `《${initialPrefillCombo.name.split(' ')[0]}》连带销售实战演练`,
+        language: '印尼语',
+        status: 'enabled',
+        voiceTone: 'Pemimpin Dominan',
+        category: mainP?.category || '护肤',
+        visibleRegions: ['kantor pusat'],
+        sceneDescription: `顾客咨询购买【${mainP?.name || '核心主推品'}】，BA通过专业提问挖掘潜在关联需求，顺势引入连带产品进行搭配推荐。`,
+        scenePrompt: `顾客正在专柜选购${mainP?.name || '核心单品'}。BA首先肯定顾客的选择并介绍核心功效，随后在交流中自然发现搭配诉求，向顾客推荐搭配介绍产品【${crossPs.map((p) => p.name).join('与')}】，说明成套使用的倍增效果并促进客单价提升。`,
+        coverImage: 'https://images.unsplash.com/photo-1556761175-5973dc0f32e7?w=800&auto=format&fit=crop&q=80',
+        linkedCombination: {
+          combinationId: initialPrefillCombo.id,
+          combinationName: initialPrefillCombo.name,
+          mainProductId: initialPrefillCombo.mainProductId,
+          crossSellingProductIds: [...initialPrefillCombo.crossSellingProductIds],
+          pairingType: 'official',
+        },
+        scenarioTags: {
+          scenarios: ['日常洗护', '连带搭配'],
+          demands: ['综合护理', '功效互补'],
+          targetGroups: ['注重品质顾客'],
+          categoryDimensions: {},
+          customTags: ['连带销售', '一单多件'],
+        },
+        steps: [
+          {
+            id: `step-1`,
+            order: 1,
+            title: '步骤一：痛点挖掘与核心单品推介',
+            goal: `精准提问，介绍【${mainP?.name || '核心单品'}】核心卖点`,
+            hint: '聚焦解决核心问题，建立专业信赖感',
+          },
+          {
+            id: `step-2`,
+            order: 2,
+            title: '步骤二：功效叠加与搭配连带推荐',
+            goal: `自然引入搭配产品【${crossPs[0]?.name || '搭配产品'}】，演示成套使用效果`,
+            hint: '阐述1+1>2原理，让顾客感受连带价值',
+          },
+          {
+            id: `step-3`,
+            order: 3,
+            title: '步骤三：成套优惠引导与连带促成',
+            goal: '提示组合专享礼遇或会员加赠，促成两件/多件连带成交',
+            hint: '打消价格顾虑，锁定连带购买意向',
+          },
+        ],
+        usageCount: 0,
+        createdAt: new Date().toISOString().split('T')[0],
+        updatedAt: new Date().toISOString().split('T')[0],
+      };
+
+      onSaveScript(newScript);
+      setSelectedScriptId(newId);
+      setDraftScript(newScript);
+      onClearInitialPrefill?.();
+    }
+  }, [initialPrefillCombo]);
+
   // Custom free-text tag input
   const [customTagInput, setCustomTagInput] = useState('');
 
   // Script preview modal
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+
+  // Product selection and search states for scenario script
+  const [mainProdSearch, setMainProdSearch] = useState('');
+  const [crossProdSearch, setCrossProdSearch] = useState('');
+  const [showSyncSuccess, setShowSyncSuccess] = useState(false);
 
   // Filtered list
   const filteredList = useMemo(() => {
@@ -101,12 +188,6 @@ export const ScenarioScriptView: React.FC<ScenarioScriptViewProps> = ({
     });
   }, [scripts, searchQuery, categoryFilter, comboFilter]);
 
-  // Linked Combination details
-  const activeCombination = useMemo(() => {
-    if (!draftScript?.linkedCombination?.combinationId) return null;
-    return combinations.find((c) => c.id === draftScript.linkedCombination?.combinationId) || null;
-  }, [combinations, draftScript?.linkedCombination?.combinationId]);
-
   // Main product and cross products derived automatically
   const mainProduct = useMemo(() => {
     const pId = draftScript?.linkedCombination?.mainProductId;
@@ -118,6 +199,34 @@ export const ScenarioScriptView: React.FC<ScenarioScriptViewProps> = ({
     const ids = draftScript?.linkedCombination?.crossSellingProductIds || [];
     return products.filter((p) => ids.includes(p.id));
   }, [products, draftScript?.linkedCombination?.crossSellingProductIds]);
+
+  // Check exact match with an existing combination in combinations
+  const matchingOfficialCombo = useMemo(() => {
+    const mainId = draftScript?.linkedCombination?.mainProductId;
+    const crossIds = draftScript?.linkedCombination?.crossSellingProductIds || [];
+    if (!mainId) return null;
+    return (
+      combinations.find((c) => {
+        if (c.mainProductId !== mainId) return false;
+        if (c.crossSellingProductIds.length !== crossIds.length) return false;
+        return c.crossSellingProductIds.every((id) => crossIds.includes(id));
+      }) || null
+    );
+  }, [combinations, draftScript?.linkedCombination?.mainProductId, draftScript?.linkedCombination?.crossSellingProductIds]);
+
+  // Check if there are combinations where mainProductId === currentMainProductId (for quick quote recommendation)
+  const recommendedOfficialCombos = useMemo(() => {
+    const mainId = draftScript?.linkedCombination?.mainProductId;
+    if (!mainId) return [];
+    return combinations.filter((c) => c.mainProductId === mainId);
+  }, [combinations, draftScript?.linkedCombination?.mainProductId]);
+
+  // Active Linked Combination details
+  const activeCombination = useMemo(() => {
+    if (matchingOfficialCombo) return matchingOfficialCombo;
+    if (!draftScript?.linkedCombination?.combinationId) return null;
+    return combinations.find((c) => c.id === draftScript.linkedCombination?.combinationId) || null;
+  }, [combinations, matchingOfficialCombo, draftScript?.linkedCombination?.combinationId]);
 
   // Determine applicable category for dynamic dimensions based on main product
   const applicableCategoryKey = useMemo(() => {
@@ -238,27 +347,118 @@ export const ScenarioScriptView: React.FC<ScenarioScriptViewProps> = ({
     });
   };
 
-  const handleSelectCombination = (comboId: string) => {
-    if (!comboId) {
-      setDraftScript({
-        ...draftScript,
-        linkedCombination: undefined,
-      });
-      return;
-    }
+  // 1. 选择主推品 (从全量产品选择，支持搜索，回显已有主推品)
+  const handleSelectMainProduct = (productId: string) => {
+    if (!draftScript) return;
+    const currentCross = (draftScript.linkedCombination?.crossSellingProductIds || []).filter(
+      (id) => id !== productId
+    );
 
-    const found = combinations.find((c) => c.id === comboId);
-    if (found) {
-      setDraftScript({
-        ...draftScript,
-        linkedCombination: {
-          combinationId: found.id,
-          combinationName: found.name,
-          mainProductId: found.mainProductId,
-          crossSellingProductIds: found.crossSellingProductIds,
-        },
-      });
-    }
+    // 自动检查是否与连带销售组合完全匹配
+    const matched = combinations.find(
+      (c) =>
+        c.mainProductId === productId &&
+        c.crossSellingProductIds.length === currentCross.length &&
+        c.crossSellingProductIds.every((id) => currentCross.includes(id))
+    );
+
+    setDraftScript({
+      ...draftScript,
+      linkedCombination: {
+        mainProductId: productId,
+        crossSellingProductIds: currentCross,
+        combinationId: matched ? matched.id : undefined,
+        combinationName: matched ? matched.name : '自定义搭配',
+        pairingType: matched ? 'official' : 'custom',
+      },
+    });
+  };
+
+  // 2. 添加/移除连带品 (多选，从全量产品选择，支持搜索)
+  const handleToggleCrossProduct = (productId: string) => {
+    if (!draftScript) return;
+    const currentMain = draftScript.linkedCombination?.mainProductId || '';
+    if (productId === currentMain) return; // 主推品不能作为连带品
+
+    const currentCross = draftScript.linkedCombination?.crossSellingProductIds || [];
+    const nextCross = currentCross.includes(productId)
+      ? currentCross.filter((id) => id !== productId)
+      : [...currentCross, productId];
+
+    const matched = combinations.find(
+      (c) =>
+        c.mainProductId === currentMain &&
+        c.crossSellingProductIds.length === nextCross.length &&
+        c.crossSellingProductIds.every((id) => nextCross.includes(id))
+    );
+
+    setDraftScript({
+      ...draftScript,
+      linkedCombination: {
+        mainProductId: currentMain,
+        crossSellingProductIds: nextCross,
+        combinationId: matched ? matched.id : undefined,
+        combinationName: matched ? matched.name : '自定义搭配',
+        pairingType: matched ? 'official' : 'custom',
+      },
+    });
+  };
+
+  // 3. 一键引用推荐的连带销售组合
+  const handleApplyRecommendedCombo = (combo: ProductCombination) => {
+    if (!draftScript) return;
+    setDraftScript({
+      ...draftScript,
+      linkedCombination: {
+        mainProductId: combo.mainProductId,
+        crossSellingProductIds: [...combo.crossSellingProductIds],
+        combinationId: combo.id,
+        combinationName: combo.name,
+        pairingType: 'official',
+      },
+    });
+  };
+
+  // 4. 同步创建为正式连带销售组合
+  const handleSyncCreateCombination = () => {
+    if (!draftScript || !onSaveCombination) return;
+    const currentMain = draftScript.linkedCombination?.mainProductId;
+    const currentCross = draftScript.linkedCombination?.crossSellingProductIds || [];
+    const mainP = products.find((p) => p.id === currentMain);
+    const crossPs = products.filter((p) => currentCross.includes(p.id));
+    if (!mainP || crossPs.length === 0) return;
+
+    const newComboId = `combo-${Date.now()}`;
+    const newComboName = `【${mainP.brand || '搭配'}】${mainP.name.split(' ')[0]} + ${crossPs
+      .map((p) => p.name.split(' ')[0])
+      .join(' / ')} 连带销售组合`;
+
+    const newCombo: ProductCombination = {
+      id: newComboId,
+      name: newComboName,
+      mainProductId: mainP.id,
+      crossSellingProductIds: [...currentCross],
+      description: `由场景剧本《${draftScript.title}》同步创建的连带销售组合。`,
+      isConfirmed: true,
+      createdAt: new Date().toISOString().split('T')[0],
+      updatedAt: new Date().toISOString().split('T')[0],
+    };
+
+    onSaveCombination(newCombo);
+
+    setDraftScript({
+      ...draftScript,
+      linkedCombination: {
+        mainProductId: mainP.id,
+        crossSellingProductIds: [...currentCross],
+        combinationId: newComboId,
+        combinationName: newComboName,
+        pairingType: 'official',
+      },
+    });
+
+    setShowSyncSuccess(true);
+    setTimeout(() => setShowSyncSuccess(false), 3500);
   };
 
   const handleAddStep = () => {
@@ -328,8 +528,8 @@ export const ScenarioScriptView: React.FC<ScenarioScriptViewProps> = ({
         {
           id: `step-${Date.now()}-2`,
           order: 2,
-          title: '主推品推荐与试用体验',
-          goal: '讲解主推品核心卖点并打消顾虑',
+          title: '核心产品推荐与试用体验',
+          goal: '讲解核心产品核心卖点并打消顾虑',
           hint: '在手背进行质地试用，突出即时效果',
         },
       ],
@@ -446,14 +646,20 @@ export const ScenarioScriptView: React.FC<ScenarioScriptViewProps> = ({
                     </p>
 
                     {/* Linked combination badge */}
-                    {sc.linkedCombination ? (
+                    {sc.linkedCombination?.pairingType === 'official' || sc.linkedCombination?.combinationId ? (
                       <div className="mt-1.5">
-                        <span className="text-[10px] bg-[#FFF0E6] text-[#9E4A2B] px-1.5 py-0.2 rounded border border-[#FDBA74] truncate block">
-                          🔗 {sc.linkedCombination.combinationName}
+                        <span className="text-[10px] bg-emerald-50 text-emerald-800 px-1.5 py-0.2 rounded border border-emerald-300 truncate block font-medium">
+                          🔗 正式组合: {sc.linkedCombination.combinationName}
+                        </span>
+                      </div>
+                    ) : sc.linkedCombination?.mainProductId ? (
+                      <div className="mt-1.5">
+                        <span className="text-[10px] bg-amber-50 text-amber-800 px-1.5 py-0.2 rounded border border-amber-300 truncate block font-medium">
+                          🎨 自定义搭配 ({sc.linkedCombination.crossSellingProductIds?.length || 0}款连带)
                         </span>
                       </div>
                     ) : (
-                      <span className="text-[10px] text-gray-400 mt-1 block">未关联产品组合</span>
+                      <span className="text-[10px] text-gray-400 mt-1 block">未关联产品</span>
                     )}
 
                     <div className="text-[10px] text-[#9CA3AF] mt-1">
@@ -696,17 +902,29 @@ export const ScenarioScriptView: React.FC<ScenarioScriptViewProps> = ({
             </div>
           </div>
 
-          {/* CARD 2: ★ 核心新增：关联产品组合 (优先关联产品管理中已经建立的连带销售组合) */}
+          {/* CARD 2: ★ 场景产品配置 (核心介绍产品 + 搭配介绍产品) */}
           <div className="bg-white rounded-xl border border-[#EAE6DD] p-5 space-y-4 shadow-2xs">
-            <div className="flex items-center justify-between pb-2 border-b border-[#F0ECE3]">
+            <div className="flex items-center justify-between pb-3 border-b border-[#F0ECE3]">
               <div className="flex items-center gap-2">
                 <Layers className="w-4 h-4 text-[#9E4A2B]" />
                 <h3 className="font-bold text-xs text-[#1F2937]">
-                  关联产品组合 (连带销售拓扑)
+                  场景产品配置
                 </h3>
-                <span className="text-[10px] bg-[#9E4A2B]/10 text-[#9E4A2B] px-2 py-0.5 rounded font-medium">
-                  由 1个主推品 + 连带品 构成
-                </span>
+                {matchingOfficialCombo ? (
+                  <span className="text-[10px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full font-semibold border border-emerald-300 flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                    已匹配正式组合：{matchingOfficialCombo.name.split(' ')[0]}
+                  </span>
+                ) : mainProduct ? (
+                  <span className="text-[10px] bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full font-semibold border border-amber-300 flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 text-amber-600" />
+                    自定义搭配 ({crossProducts.length}款搭配)
+                  </span>
+                ) : (
+                  <span className="text-[10px] bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full font-medium">
+                    待配置场景产品
+                  </span>
+                )}
               </div>
               {mainProduct && onNavigateToProduct && (
                 <button
@@ -714,108 +932,93 @@ export const ScenarioScriptView: React.FC<ScenarioScriptViewProps> = ({
                   onClick={() => onNavigateToProduct(mainProduct)}
                   className="text-xs text-[#9E4A2B] hover:underline flex items-center gap-1 font-medium cursor-pointer"
                 >
-                  <span>查看主推品详情</span>
+                  <span>查看核心产品详情</span>
                   <ExternalLink className="w-3 h-3" />
                 </button>
               )}
             </div>
 
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs font-semibold text-[#4B5563] mb-1">
-                  选择连带销售产品组合 <span className="text-[#9CA3AF] font-normal">(读取产品管理已建立组合，无需重复维护)</span>
-                </label>
-                <select
-                  value={draftScript.linkedCombination?.combinationId || ''}
-                  onChange={(e) => handleSelectCombination(e.target.value)}
-                  className="w-full px-3 py-2 text-xs border border-[#D6D0C4] rounded-lg bg-[#FAF8F5] focus:outline-none focus:border-[#9E4A2B] font-semibold text-[#1F2937]"
-                >
-                  <option value="">-- 请选择关联产品组合 (选填) --</option>
-                  {combinations.map((c) => (
-                    <option key={c.id} value={c.id}>
-                      {c.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Combination Details Display */}
-              {activeCombination && mainProduct ? (
-                <div className="p-4 bg-[#FAF8F5] rounded-xl border border-[#EAE6DD] space-y-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-[#1F2937] flex items-center gap-1.5">
-                      <span className="w-2 h-2 rounded-full bg-[#9E4A2B]" />
-                      <span>{activeCombination.name}</span>
+            <div className="space-y-4">
+              {/* FIELD A: 核心介绍产品 (必选，来源全量产品库，支持搜索与回显) */}
+              <div className="p-4 bg-[#FFF9F5] rounded-xl border border-[#FED7AA] space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-[#9A3412] flex items-center gap-1.5">
+                    <span>⭐ 核心介绍产品 (必选)</span>
+                    <span className="text-[10px] text-gray-500 font-normal">
+                      来自系统全部产品，不强制限定已有组合
                     </span>
-                    <button
-                      type="button"
-                      onClick={() => handleSelectCombination('')}
-                      className="text-[11px] text-[#9CA3AF] hover:text-red-500 cursor-pointer"
-                    >
-                      解除关联
-                    </button>
-                  </div>
+                  </label>
+                </div>
 
-                  {activeCombination.description && (
-                    <p className="text-[11px] text-[#6B7280] italic">
-                      组合策略：{activeCombination.description}
-                    </p>
-                  )}
+                <div className="space-y-2">
+                  <select
+                    value={draftScript.linkedCombination?.mainProductId || ''}
+                    onChange={(e) => handleSelectMainProduct(e.target.value)}
+                    className="w-full px-3 py-2 text-xs border border-[#FDBA74] rounded-lg bg-white font-semibold text-[#1F2937] focus:outline-none focus:border-[#9E4A2B]"
+                  >
+                    <option value="">-- 请选择核心介绍产品 (必选) --</option>
+                    {products.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        [{p.brand}] {p.name} ({p.category})
+                      </option>
+                    ))}
+                  </select>
 
-                  {/* Main Product Card */}
-                  <div className="p-3 bg-white rounded-lg border border-[#EAE6DD] flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <img
-                        src={mainProduct.image}
-                        alt={mainProduct.name}
-                        className="w-12 h-12 rounded-lg object-cover border border-[#EAE6DD] shrink-0"
-                      />
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] bg-[#9E4A2B] text-white px-1.5 py-0.2 rounded font-bold">
-                            ⭐ 主推品
-                          </span>
-                          <span className="font-bold text-xs text-[#1F2937] truncate">
-                            {mainProduct.name}
-                          </span>
-                        </div>
-                        <div className="text-[11px] text-[#6B7280] font-mono mt-0.5">
-                          品牌: {mainProduct.brand} · SKU: {mainProduct.sku}
+                  {/* Selected Main Product Card */}
+                  {mainProduct && (
+                    <div className="p-3 bg-white rounded-lg border border-[#FDBA74] flex items-center justify-between gap-3 shadow-2xs">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <img
+                          src={mainProduct.image}
+                          alt={mainProduct.name}
+                          className="w-12 h-12 rounded-lg object-cover border border-[#EAE6DD] shrink-0"
+                        />
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] bg-[#9E4A2B] text-white px-1.5 py-0.2 rounded font-bold">
+                              ⭐ 核心产品
+                            </span>
+                            <span className="font-bold text-xs text-[#1F2937] truncate">
+                              {mainProduct.name}
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-[#6B7280] font-mono mt-0.5">
+                            品牌: {mainProduct.brand} · SKU: {mainProduct.sku}
+                          </div>
                         </div>
                       </div>
                     </div>
+                  )}
+                </div>
+              </div>
 
-                    {onOpenTaskPublish && (
-                      <button
-                        type="button"
-                        onClick={() =>
-                          onOpenTaskPublish(mainProduct, {
-                            id: draftScript.id,
-                            category: 'practice',
-                            title: draftScript.title,
-                          })
-                        }
-                        className="px-3 py-1 bg-[#9E4A2B] text-white rounded-lg text-xs font-semibold hover:bg-[#853C21] transition-all shadow-2xs cursor-pointer flex items-center gap-1 shrink-0"
-                      >
-                        <Send className="w-3 h-3" />
-                        <span>由此剧本发任务</span>
-                      </button>
-                    )}
+              {/* FIELD B: 搭配介绍产品 (选填，可多选，从全量产品选择，支持添加与移除) */}
+              <div className="p-4 bg-[#F8FAF9] rounded-xl border border-[#A7F3D0] space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <label className="text-xs font-bold text-[#065F46] flex items-center gap-1.5">
+                      <span>🔗 搭配介绍产品 (选填，可多选)</span>
+                    </label>
+                    <span className="text-[11px] text-[#6B7280] font-normal">
+                      从产品库选择，可添加多个
+                    </span>
                   </div>
+                  <span className="text-[10px] text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded font-semibold">
+                    已选 {crossProducts.length} 款
+                  </span>
+                </div>
 
-                  {/* Cross-selling products cards */}
-                  {crossProducts.length > 0 && (
-                    <div className="space-y-1.5 pt-1">
-                      <div className="text-[11px] font-semibold text-[#4B5563] flex items-center gap-1">
-                        <ArrowRight className="w-3 h-3 text-[#10B981]" />
-                        <span>自动连带品 ({crossProducts.length} 款)：</span>
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                        {crossProducts.map((cp) => (
-                          <div
-                            key={cp.id}
-                            className="p-2.5 bg-white rounded-lg border border-[#EAE6DD] flex items-center gap-2.5"
-                          >
+                {/* Selected Cross-selling Products Chips */}
+                {crossProducts.length > 0 && (
+                  <div className="space-y-2">
+                    <span className="text-[11px] text-gray-500 font-medium">当前选中的搭配产品列表：</span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {crossProducts.map((cp) => (
+                        <div
+                          key={cp.id}
+                          className="p-2.5 bg-white rounded-lg border border-emerald-300 flex items-center justify-between gap-2 shadow-2xs"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
                             <img
                               src={cp.image}
                               alt={cp.name}
@@ -824,7 +1027,7 @@ export const ScenarioScriptView: React.FC<ScenarioScriptViewProps> = ({
                             <div className="min-w-0">
                               <div className="flex items-center gap-1.5">
                                 <span className="text-[9px] bg-emerald-50 text-emerald-700 px-1 py-0.2 rounded font-bold border border-emerald-200">
-                                  连带品
+                                  搭配品
                                 </span>
                                 <span className="font-semibold text-xs text-[#1F2937] truncate">
                                   {cp.name}
@@ -835,22 +1038,138 @@ export const ScenarioScriptView: React.FC<ScenarioScriptViewProps> = ({
                               </div>
                             </div>
                           </div>
-                        ))}
-                      </div>
+
+                          <button
+                            type="button"
+                            onClick={() => handleToggleCrossProduct(cp.id)}
+                            className="text-gray-400 hover:text-red-500 p-1 cursor-pointer shrink-0"
+                            title="移除此搭配产品"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
                     </div>
-                  )}
-                </div>
-              ) : (
-                <div className="p-3.5 bg-gray-50 border border-dashed border-gray-300 rounded-xl text-xs text-gray-500 space-y-1">
-                  <div className="font-semibold text-gray-700 flex items-center gap-1">
-                    <Info className="w-3.5 h-3.5 text-gray-400" />
-                    <span>尚未关联产品组合</span>
                   </div>
-                  <p className="text-[11px] leading-relaxed">
-                    允许先保存剧本内容；建议产品管理员在产品详情页建立连带销售组合后，在此关联绑定，以便系统精准在产品管理页按「主推品优先、连带品补充」推荐该剧本。
+                )}
+
+                {/* Product search and addition list */}
+                <div className="space-y-2 pt-2 border-t border-[#D1FAE5]">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-semibold text-[#374151]">
+                      从产品库搜索添加搭配产品：
+                    </span>
+                    <div className="relative w-52">
+                      <Search className="w-3.5 h-3.5 text-gray-400 absolute left-2.5 top-2" />
+                      <input
+                        type="text"
+                        placeholder="搜索产品名称、品牌..."
+                        value={crossProdSearch}
+                        onChange={(e) => setCrossProdSearch(e.target.value)}
+                        className="w-full pl-7 pr-2 py-1 text-xs border border-gray-300 rounded-md bg-white focus:outline-none focus:border-emerald-500"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="max-h-40 overflow-y-auto space-y-1.5 pr-1 scrollbar-thin">
+                    {products
+                      .filter((p) => p.id !== draftScript.linkedCombination?.mainProductId)
+                      .filter(
+                        (p) =>
+                          !crossProdSearch ||
+                          p.name.toLowerCase().includes(crossProdSearch.toLowerCase()) ||
+                          p.brand.toLowerCase().includes(crossProdSearch.toLowerCase()) ||
+                          p.sku.toLowerCase().includes(crossProdSearch.toLowerCase())
+                      )
+                      .map((p) => {
+                        const isSelected = (
+                          draftScript.linkedCombination?.crossSellingProductIds || []
+                        ).includes(p.id);
+                        return (
+                          <div
+                            key={p.id}
+                            onClick={() => handleToggleCrossProduct(p.id)}
+                            className={`p-2 rounded-lg border flex items-center justify-between cursor-pointer transition-colors ${
+                              isSelected
+                                ? 'bg-emerald-50 border-emerald-400 text-emerald-900'
+                                : 'bg-white border-gray-200 hover:border-gray-300'
+                            }`}
+                          >
+                            <div className="flex items-center gap-2 min-w-0">
+                              <img
+                                src={p.image}
+                                alt={p.name}
+                                className="w-7 h-7 rounded object-cover border border-gray-200 shrink-0"
+                              />
+                              <div className="min-w-0">
+                                <div className="font-medium text-xs truncate">{p.name}</div>
+                                <div className="text-[10px] text-gray-400 truncate">
+                                  [{p.brand}] {p.sku}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="shrink-0 ml-2">
+                              {isSelected ? (
+                                <span className="px-2 py-0.5 bg-emerald-600 text-white rounded text-[10px] font-semibold flex items-center gap-0.5">
+                                  <Check className="w-3 h-3" /> 已添加
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-[10px] font-medium">
+                                  + 添加为搭配品
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              </div>
+
+              {/* COMBINATION MATCH STATUS & SYNC OPTION */}
+              {matchingOfficialCombo ? (
+                <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-xs space-y-1">
+                  <div className="flex items-center gap-1.5 font-bold text-emerald-800">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>已匹配正式组合：{matchingOfficialCombo.name}</span>
+                  </div>
+                  <p className="text-[11px] text-emerald-700 leading-relaxed">
+                    当前核心产品与搭配产品组合与后台连带销售模块完全一致，在产品详情页和对练推荐中享有「组合主推剧本」最高推荐优先级。
                   </p>
                 </div>
-              )}
+              ) : mainProduct && crossProducts.length > 0 ? (
+                <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-xs space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1.5 font-bold text-amber-900">
+                      <Sparkles className="w-4 h-4 text-amber-600 shrink-0" />
+                      <span>当前搭配为「自定义搭配」</span>
+                    </div>
+                    {showSyncSuccess && (
+                      <span className="text-[11px] text-emerald-700 font-bold bg-emerald-100 px-2 py-0.5 rounded">
+                        ✅ 已成功同步为正式组合！
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-amber-800 leading-relaxed">
+                    当前搭配尚未建立正式产品组合。剧本可按自定义搭配<strong>正常保存与发布对练</strong>，在核心产品与搭配产品各自的产品详情页中均可正常使用。
+                  </p>
+                  <div className="flex items-center gap-2 pt-1">
+                    {onSaveCombination && (
+                      <button
+                        type="button"
+                        onClick={handleSyncCreateCombination}
+                        className="px-3 py-1.5 bg-[#9E4A2B] hover:bg-[#853C21] text-white text-xs font-semibold rounded-lg transition-colors cursor-pointer shadow-xs flex items-center gap-1"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>同步创建为新的连带销售组合</span>
+                      </button>
+                    )}
+                    <span className="text-[11px] text-gray-500">
+                      （点击将自动在后台建立对应产品组合，不创建亦可直接保存剧本）
+                    </span>
+                  </div>
+                </div>
+              ) : null}
             </div>
           </div>
 
@@ -1131,7 +1450,7 @@ export const ScenarioScriptView: React.FC<ScenarioScriptViewProps> = ({
               <div>
                 <h3 className="font-bold text-xs text-[#1F2937]">剧本对练预览：{draftScript.title}</h3>
                 <div className="text-[10px] text-[#6B7280]">
-                  {mainProduct ? `主推品: 【${mainProduct.brand}】${mainProduct.name}` : '未关联主推品'}
+                  {mainProduct ? `核心产品: 【${mainProduct.brand}】${mainProduct.name}` : '未关联核心产品'}
                 </div>
               </div>
               <button

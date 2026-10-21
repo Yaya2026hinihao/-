@@ -82,6 +82,9 @@ interface ProductDetailProps {
   tagDimensions?: TagDimensionConfig[];
   onSaveDigitalHuman?: (dh: DigitalHumanCustomer) => void;
   onSaveScript?: (script: ScenarioScriptItem) => void;
+  onNavigateToCrossSelling?: () => void;
+  onNavigateToScript?: (scriptId?: string) => void;
+  onCreateScriptForCombo?: (combo: ProductCombination) => void;
 }
 
 export const ProductDetail: React.FC<ProductDetailProps> = ({
@@ -101,10 +104,83 @@ export const ProductDetail: React.FC<ProductDetailProps> = ({
   tagDimensions,
   onSaveDigitalHuman,
   onSaveScript,
+  onNavigateToCrossSelling,
+  onNavigateToScript,
+  onCreateScriptForCombo,
 }) => {
   const [activeTab, setActiveTab] = useState<'info' | 'cross-selling' | 'assets' | 'analytics'>('info');
   const [practiceTypeFilter, setPracticeTypeFilter] = useState<'全部' | '数字人' | '场景对话' | '金句'>('全部');
   const [showAddCrossModal, setShowAddCrossModal] = useState(false);
+
+  // 核心设计：仅计算与当前产品相关的连带销售组合（第一优先级：当前产品为主推；第二优先级：当前产品为连带）
+  const relevantCombinations = useMemo(() => {
+    if (!combinations) return [];
+    const mainList: Array<{ combo: ProductCombination; role: 'main' | 'cross' }> = [];
+    const crossList: Array<{ combo: ProductCombination; role: 'main' | 'cross' }> = [];
+
+    combinations.forEach((c) => {
+      if (c.mainProductId === product.id) {
+        mainList.push({ combo: c, role: 'main' });
+      } else if (c.crossSellingProductIds?.includes(product.id)) {
+        crossList.push({ combo: c, role: 'cross' });
+      }
+    });
+
+    return [...mainList, ...crossList];
+  }, [combinations, product.id]);
+
+  // 概览统计数据
+  const mainRoleComboCount = useMemo(() => {
+    return relevantCombinations.filter((r) => r.role === 'main').length;
+  }, [relevantCombinations]);
+
+  const crossRoleComboCount = useMemo(() => {
+    return relevantCombinations.filter((r) => r.role === 'cross').length;
+  }, [relevantCombinations]);
+
+  // 关联场景剧本数（统计当前产品相关的所有组合所关联的真实场景剧本，去重）
+  const relatedComboScripts = useMemo(() => {
+    if (!scenarioScripts) return [];
+    const relevantComboIds = new Set(relevantCombinations.map((rc) => rc.combo.id));
+    const uniqueMap = new Map<string, ScenarioScriptItem>();
+
+    scenarioScripts.forEach((sc) => {
+      const cId = sc.linkedCombination?.combinationId;
+      if (cId && relevantComboIds.has(cId)) {
+        uniqueMap.set(sc.id, sc);
+        return;
+      }
+      const isMatched = relevantCombinations.some(({ combo }) => {
+        if (sc.linkedCombination?.mainProductId !== combo.mainProductId) return false;
+        const scriptCross = sc.linkedCombination?.crossSellingProductIds || [];
+        if (scriptCross.length !== combo.crossSellingProductIds.length) return false;
+        return scriptCross.every((id) => combo.crossSellingProductIds.includes(id));
+      });
+      if (isMatched) {
+        uniqueMap.set(sc.id, sc);
+      }
+    });
+
+    return Array.from(uniqueMap.values());
+  }, [scenarioScripts, relevantCombinations]);
+
+  // 辅助函数：获取特定组合所关联的场景剧本
+  const getScriptsForCombo = (combo: ProductCombination): ScenarioScriptItem[] => {
+    if (!scenarioScripts) return [];
+    return scenarioScripts.filter((sc) => {
+      if (sc.linkedCombination?.combinationId === combo.id) return true;
+      if (sc.linkedCombination?.mainProductId === combo.mainProductId) {
+        const scCross = sc.linkedCombination?.crossSellingProductIds || [];
+        if (
+          scCross.length === combo.crossSellingProductIds.length &&
+          scCross.every((id) => combo.crossSellingProductIds.includes(id))
+        ) {
+          return true;
+        }
+      }
+      return false;
+    });
+  };
 
   // Dynamic sums that strictly match asset table usage counts
   // 1. 关联该产品的数字人顾客 (按产品 ID 关联)
@@ -129,18 +205,19 @@ export const ProductDetail: React.FC<ProductDetailProps> = ({
       const combo = sc.linkedCombination;
       if (!combo) return;
       if (combo.mainProductId === product.id) {
+        const isOfficial = combo.pairingType === 'official' || !!combo.combinationId;
         results.push({
           script: sc,
           priority: 1,
-          badgeText: '⭐ 组合主推',
-          comboName: combo.combinationName,
+          badgeText: isOfficial ? '⭐ 组合主推' : '⭐ 主推剧本',
+          comboName: combo.combinationName || '产品搭配',
         });
       } else if (combo.crossSellingProductIds?.includes(product.id)) {
         results.push({
           script: sc,
           priority: 2,
           badgeText: '🔗 连带补充',
-          comboName: combo.combinationName,
+          comboName: combo.combinationName || '连带搭配',
         });
       }
     });
@@ -734,7 +811,7 @@ export const ProductDetail: React.FC<ProductDetailProps> = ({
                 : 'border-transparent text-[#6B7280] hover:text-[#1F2937]'
             }`}
           >
-            搭配销售 / 连带关系 ({product.crossSelling.length})
+            搭配销售与连带关系 ({relevantCombinations.length})
           </button>
 
           <button
@@ -1861,269 +1938,433 @@ export const ProductDetail: React.FC<ProductDetailProps> = ({
           </div>
         )}
 
-        {/* Tab 3: Cross-selling & Bundles (Sections 15, 16, 17) */}
+        {/* Tab 3: 搭配销售与连带关系 (基于全局产品组合与场景剧本关联，展示当前产品参与的全部搭配) */}
         {activeTab === 'cross-selling' && (
           <div className="p-6 space-y-6 text-xs">
-            <div className="flex items-center justify-between border-b border-[#F0ECE3] pb-3">
+            {/* Top Header: 简洁标题、说明与前往全局管理入口 */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-[#F0ECE3] pb-4">
               <div>
-                <h3 className="text-sm font-bold text-[#1F2937]">
-                  主推品 → 连带销售矩阵 (Cross-Selling Strategy)
-                </h3>
-                <p className="text-[#6B7280] text-xs mt-0.5">
-                  美妆销售不是单品销售：围绕核心主推品，建立连带推荐搭配、连带话术与配套练习场景
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-bold text-[#1F2937]">
+                    搭配销售与连带关系
+                  </h3>
+                  <span className="text-[11px] bg-orange-50 text-[#9E4A2B] font-semibold px-2 py-0.5 rounded-full border border-orange-200">
+                    共参与 {relevantCombinations.length} 组搭配
+                  </span>
+                </div>
+                <p className="text-[#6B7280] text-xs mt-1">
+                  查看当前产品参与的搭配组合及相关练习资产
                 </p>
               </div>
 
-              <button
-                onClick={() => setShowAddCrossModal(true)}
-                className="flex items-center gap-1 px-3 py-1.5 bg-[#9E4A2B] hover:bg-[#8C3E20] text-white rounded-lg transition-colors font-medium shadow-xs"
-              >
-                <Plus className="w-3.5 h-3.5" />
-                <span>+ 建立连带关系</span>
-              </button>
-            </div>
-
-            {/* AI Smart Cross-Selling & Combination Training Recommendation */}
-            <div className="bg-gradient-to-r from-[#FFFBEB] via-[#FEF3C7]/40 to-[#FFF7ED] p-4 rounded-xl border border-[#FDE68A] shadow-2xs space-y-3 mb-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-6 h-6 rounded-md bg-[#F59E0B] text-white flex items-center justify-center shadow-xs">
-                    <Sparkles className="w-3.5 h-3.5" />
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-xs text-[#92400E]">
-                      AI 智能连带销售搭配与对练推荐
-                    </h4>
-                    <p className="text-[11px] text-[#B45309]">
-                      根据专柜连带率 (UPT) 与客单价 (ATV) 分析：围绕核心单品搭配连带品发布单项实战练习，赋能柜台BA
-                    </p>
-                  </div>
-                </div>
-                <span className="text-[10px] bg-[#FEF3C7] text-[#92400E] border border-[#FCD34D] px-2 py-0.5 rounded font-medium">
-                  组合策略
-                </span>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs pt-1">
-                <div className="bg-white/90 p-3 rounded-lg border border-[#FDE68A]/70 space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="font-semibold text-[#1F2937]">🎯 爆品连带搭档：{product.crossSelling[0]?.productName || '搭配品'}</span>
-                    <span className="text-[10px] text-[#059669] bg-[#ECFDF5] px-1.5 py-0.5 rounded font-medium">连带率预估 +38%</span>
-                  </div>
-                  <p className="text-[#6B7280] text-[11px] leading-relaxed">
-                    {product.crossSelling[0]?.recommendReason || '以主推品锁住柜台客流，顺势推介连带搭配品，形成闭环体验。'}
-                  </p>
-                </div>
-
-                <div className="bg-white/90 p-3 rounded-lg border border-[#FDE68A]/70 flex items-center justify-between gap-3">
-                  <div className="space-y-0.5">
-                    <div className="font-semibold text-[#9E4A2B] text-xs">配套练习：连带销售场景实战</div>
-                    <div className="text-[11px] text-[#6B7280]">
-                      推荐发布 1 次专项练习：《{product.crossSelling[0]?.associatedPracticeScene || '连带促单话术演练'}》
-                    </div>
-                  </div>
+              <div className="flex items-center gap-2 shrink-0">
+                {onNavigateToCrossSelling && (
                   <button
-                    onClick={() => {
-                      const firstCross = product.crossSelling[0];
-                      onOpenTaskPublish(product, {
-                        id: firstCross ? `cross-${firstCross.productId}` : 'cross-default',
-                        category: 'practice',
-                        title: `【连带促单演练】${product.name.split(' ')[0]} + ${firstCross?.productName || '连带品'} 搭配销售`
-                      });
-                    }}
-                    className="px-3 py-1.5 bg-[#9E4A2B] hover:bg-[#8C3E20] text-white rounded-lg text-xs font-semibold shrink-0 shadow-xs transition-colors cursor-pointer flex items-center gap-1"
+                    type="button"
+                    onClick={onNavigateToCrossSelling}
+                    className="flex items-center gap-1.5 px-3.5 py-2 bg-white hover:bg-[#FAF8F5] text-[#9E4A2B] border border-[#FED7AA] hover:border-[#FDBA74] rounded-lg transition-all font-semibold shadow-2xs cursor-pointer"
                   >
-                    <MessageSquare className="w-3.5 h-3.5" />
-                    <span>发布连带练习</span>
+                    <Layers className="w-4 h-4 text-[#9E4A2B]" />
+                    <span>前往全局连带销售管理</span>
+                    <ExternalLink className="w-3.5 h-3.5 text-gray-400" />
                   </button>
-                </div>
+                )}
               </div>
             </div>
 
-            {/* Visual Cross-sell Tree Architecture */}
-            <div className="bg-[#FAF9F6] p-4 rounded-xl border border-[#EAE5D9] mb-4">
-              <div className="font-semibold text-[#1F2937] mb-2 flex items-center gap-2">
-                <Layers className="w-4 h-4 text-[#9E4A2B]" />
-                <span>连带逻辑拓扑关系：</span>
-              </div>
-              <div className="flex items-center gap-3 text-xs flex-wrap">
-                <span className="px-3 py-1 bg-[#FFEDD5] text-[#C2410C] rounded-lg font-bold border border-[#FDBA74]">
-                  ⭐ 主推品: {product.name}
-                </span>
-                <span className="text-gray-400">➔ 连带搭配：</span>
-                {product.crossSelling.map((c, i) => (
-                  <span
-                    key={i}
-                    className="px-2.5 py-1 bg-white text-[#374151] rounded-lg border border-[#D6D0C4] font-medium flex items-center gap-1 shadow-2xs"
-                  >
-                    <span>{c.productName}</span>
-                    <span className="text-[10px] bg-[#ECFDF5] text-[#047857] px-1 rounded">连带品</span>
+            {/* Overview Metric Cards: 3个统计数据卡片 */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {/* Stat 1: 核心介绍产品组合数 */}
+              <div className="bg-[#FFFBF7] p-4 rounded-xl border border-[#FED7AA] shadow-2xs space-y-1">
+                <div className="flex items-center justify-between text-xs text-[#9A3412]">
+                  <span className="font-bold flex items-center gap-1.5">
+                    <span>⭐ 核心介绍产品组合</span>
                   </span>
-                ))}
+                  <span className="text-[10px] bg-orange-100 text-[#C2410C] px-1.5 py-0.2 rounded font-semibold">
+                    第一优先级
+                  </span>
+                </div>
+                <div className="flex items-baseline gap-2 pt-1">
+                  <span className="text-2xl font-bold font-mono text-[#9A3412] tabular-nums">
+                    {mainRoleComboCount}
+                  </span>
+                  <span className="text-xs text-[#7C2D12]">个组合</span>
+                </div>
+                <p className="text-[11px] text-[#9A3412]/80 pt-0.5 leading-tight">
+                  当前产品作为核心介绍产品参与的组合数量
+                </p>
+              </div>
+
+              {/* Stat 2: 搭配介绍产品组合数 */}
+              <div className="bg-[#F6FAF7] p-4 rounded-xl border border-[#A7F3D0] shadow-2xs space-y-1">
+                <div className="flex items-center justify-between text-xs text-[#065F46]">
+                  <span className="font-bold flex items-center gap-1.5">
+                    <span>🔗 搭配介绍产品组合</span>
+                  </span>
+                  <span className="text-[10px] bg-emerald-100 text-[#047857] px-1.5 py-0.2 rounded font-semibold">
+                    第二优先级
+                  </span>
+                </div>
+                <div className="flex items-baseline gap-2 pt-1">
+                  <span className="text-2xl font-bold font-mono text-[#065F46] tabular-nums">
+                    {crossRoleComboCount}
+                  </span>
+                  <span className="text-xs text-[#047857]">个组合</span>
+                </div>
+                <p className="text-[11px] text-[#065F46]/80 pt-0.5 leading-tight">
+                  当前产品作为搭配介绍产品参与的组合数量
+                </p>
+              </div>
+
+              {/* Stat 3: 关联场景剧本数 */}
+              <div className="bg-[#F8FAFC] p-4 rounded-xl border border-[#CBD5E1] shadow-2xs space-y-1">
+                <div className="flex items-center justify-between text-xs text-[#334155]">
+                  <span className="font-bold flex items-center gap-1.5">
+                    <span>🎭 关联场景剧本</span>
+                  </span>
+                  <span className="text-[10px] bg-slate-200 text-[#1E293B] px-1.5 py-0.2 rounded font-semibold">
+                    去重统计
+                  </span>
+                </div>
+                <div className="flex items-baseline gap-2 pt-1">
+                  <span className="text-2xl font-bold font-mono text-[#0F172A] tabular-nums">
+                    {relatedComboScripts.length}
+                  </span>
+                  <span className="text-xs text-[#475569]">个剧本</span>
+                </div>
+                <p className="text-[11px] text-[#64748B] pt-0.5 leading-tight">
+                  当前产品所有相关组合所关联的对练剧本数量
+                </p>
               </div>
             </div>
 
-            {/* Cross-selling Detailed Cards */}
+            {/* Main Area: 仅展示当前产品相关的组合卡片 */}
             <div className="space-y-4">
-              {product.crossSelling.length === 0 ? (
-                <div className="text-center py-8 text-gray-400">
-                  暂未配置连带搭配产品，点击上方“+ 建立连带关系”添加。
+              {relevantCombinations.length === 0 ? (
+                /* Empty state */
+                <div className="bg-white rounded-xl border border-[#EAE6DD] p-12 text-center space-y-3 shadow-2xs">
+                  <div className="w-14 h-14 mx-auto rounded-full bg-[#FAF8F5] border border-[#EAE6DD] flex items-center justify-center text-[#9E4A2B]">
+                    <Layers className="w-7 h-7 text-gray-400" />
+                  </div>
+                  <h4 className="font-bold text-sm text-[#1F2937]">
+                    当前产品暂无参与的搭配销售组合
+                  </h4>
+                  <p className="text-xs text-[#6B7280] max-w-md mx-auto leading-relaxed">
+                    当前产品尚未作为核心介绍产品或搭配介绍产品参与系统中的连带销售组合。
+                    您可以在全局连带销售管理中为该产品建立组合，并关联专柜对练场景剧本。
+                  </p>
+                  {onNavigateToCrossSelling && (
+                    <div className="pt-2">
+                      <button
+                        type="button"
+                        onClick={onNavigateToCrossSelling}
+                        className="px-4 py-2 bg-[#9E4A2B] hover:bg-[#853C21] text-white rounded-lg text-xs font-semibold shadow-xs transition-colors cursor-pointer inline-flex items-center gap-1.5"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>前往全局连带销售管理创建组合</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               ) : (
-                product.crossSelling.map((item, idx) => (
-                  <div
-                    key={idx}
-                    className="bg-white rounded-xl border border-[#E8E6E1] p-4 shadow-xs space-y-3 hover:border-[#D4CEBF] transition-all"
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex items-center gap-3">
-                        <img
-                          src={item.image}
-                          alt={item.productName}
-                          className="w-12 h-12 rounded-lg object-cover border border-[#E0DBD0]"
-                        />
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <h4 className="font-bold text-sm text-[#1F2937]">{item.productName}</h4>
-                            <span className="text-[11px] bg-[#ECFDF5] text-[#047857] border border-[#A7F3D0] px-1.5 py-0.2 rounded font-medium">
-                              {item.role}
+                /* Combination Cards */
+                relevantCombinations.map(({ combo, role }, index) => {
+                  const mainProd = allProducts.find((p) => p.id === combo.mainProductId);
+                  const crossProds = allProducts.filter((p) =>
+                    combo.crossSellingProductIds?.includes(p.id)
+                  );
+                  const comboScripts = getScriptsForCombo(combo);
+                  const isCurrentMain = role === 'main';
+
+                  return (
+                    <div
+                      key={combo.id}
+                      className={`bg-white rounded-xl border p-5 space-y-4 shadow-2xs transition-all hover:shadow-xs ${
+                        isCurrentMain
+                          ? 'border-orange-200 hover:border-orange-300'
+                          : 'border-emerald-200 hover:border-emerald-300'
+                      }`}
+                    >
+                      {/* Card Header: Role badge, combo name, confirmed status, link */}
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pb-3 border-b border-[#F0ECE3]">
+                        <div className="flex items-center gap-2.5 flex-wrap">
+                          {isCurrentMain ? (
+                            <span className="px-2.5 py-1 bg-amber-100 text-amber-900 border border-amber-300 rounded-md font-bold text-xs flex items-center gap-1">
+                              <span>⭐ 核心介绍产品</span>
                             </span>
-                            <span className="text-[11px] text-[#6B7280]">[{item.brand}]</span>
+                          ) : (
+                            <span className="px-2.5 py-1 bg-emerald-100 text-emerald-900 border border-emerald-300 rounded-md font-bold text-xs flex items-center gap-1">
+                              <span>🔗 搭配介绍产品</span>
+                            </span>
+                          )}
+
+                          <h4 className="font-bold text-sm text-[#1F2937]">
+                            {combo.name}
+                          </h4>
+
+                          <span
+                            className={`text-[10px] px-2 py-0.5 rounded-full font-semibold border ${
+                              combo.isConfirmed
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                : 'bg-gray-100 text-gray-600 border-gray-200'
+                            }`}
+                          >
+                            {combo.isConfirmed ? '已正式确认' : '待确认组合'}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 self-end sm:self-center">
+                          {onNavigateToCrossSelling && (
+                            <button
+                              type="button"
+                              onClick={onNavigateToCrossSelling}
+                              className="text-[11px] text-[#9E4A2B] hover:text-[#853C21] font-medium flex items-center gap-1 cursor-pointer hover:underline"
+                            >
+                              <span>在全局管理中查看</span>
+                              <ExternalLink className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Combination Product Structure Topology */}
+                      <div className="bg-[#FAF9F7] p-3.5 rounded-xl border border-[#EAE6DD] space-y-2">
+                        <div className="text-[11px] font-semibold text-[#4B5563] flex items-center justify-between">
+                          <span>组合搭配关系：</span>
+                          <span className="text-[10px] text-gray-500 font-normal">
+                            1 款核心产品 + {crossProds.length} 款搭配产品
+                          </span>
+                        </div>
+
+                        <div className="flex flex-col md:flex-row md:items-center gap-3">
+                          {/* Core Product */}
+                          <div
+                            className={`p-2.5 rounded-lg border flex items-center gap-2.5 min-w-0 flex-1 ${
+                              mainProd?.id === product.id
+                                ? 'bg-amber-50/70 border-amber-300 ring-2 ring-amber-300/60'
+                                : 'bg-white border-gray-200'
+                            }`}
+                          >
+                            <img
+                              src={mainProd?.image || 'https://images.unsplash.com/photo-1556228720-195a672e8a03?w=120'}
+                              alt={mainProd?.name || '核心单品'}
+                              className="w-10 h-10 rounded-md object-cover border border-gray-200 shrink-0"
+                            />
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-[9px] bg-amber-600 text-white px-1.5 py-0.2 rounded font-bold">
+                                  核心品
+                                </span>
+                                {mainProd?.id === product.id && (
+                                  <span className="text-[9px] bg-red-100 text-red-700 px-1 py-0.2 rounded font-bold">
+                                    当前产品
+                                  </span>
+                                )}
+                                <span className="font-semibold text-xs text-[#1F2937] truncate">
+                                  {mainProd?.name || '未知产品'}
+                                </span>
+                              </div>
+                              <div className="text-[10px] text-gray-500 font-mono mt-0.5 truncate">
+                                [{mainProd?.brand}] SKU: {mainProd?.sku}
+                              </div>
+                            </div>
                           </div>
-                          <div className="text-[11px] text-[#9CA3AF] font-mono mt-0.5">
-                            SKU: {item.sku}
+
+                          {/* Arrow connector */}
+                          <div className="flex items-center justify-center text-gray-400 shrink-0 font-bold">
+                            <span className="hidden md:inline text-xs text-gray-400">➔ 搭配连带：</span>
+                            <span className="md:hidden text-xs text-gray-400">↓ 搭配连带：</span>
+                          </div>
+
+                          {/* Cross Products Grid */}
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 flex-2">
+                            {crossProds.map((cp) => {
+                              const isSelf = cp.id === product.id;
+                              return (
+                                <div
+                                  key={cp.id}
+                                  className={`p-2.5 rounded-lg border flex items-center gap-2.5 min-w-0 ${
+                                    isSelf
+                                      ? 'bg-emerald-50/80 border-emerald-400 ring-2 ring-emerald-300/60'
+                                      : 'bg-white border-gray-200'
+                                  }`}
+                                >
+                                  <img
+                                    src={cp.image}
+                                    alt={cp.name}
+                                    className="w-9 h-9 rounded-md object-cover border border-gray-200 shrink-0"
+                                  />
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-1 flex-wrap">
+                                      <span className="text-[9px] bg-emerald-600 text-white px-1.5 py-0.2 rounded font-bold">
+                                        连带品
+                                      </span>
+                                      {isSelf && (
+                                        <span className="text-[9px] bg-red-100 text-red-700 px-1 py-0.2 rounded font-bold">
+                                          当前产品
+                                        </span>
+                                      )}
+                                      <span className="font-semibold text-xs text-[#1F2937] truncate">
+                                        {cp.name}
+                                      </span>
+                                    </div>
+                                    <div className="text-[10px] text-gray-500 font-mono mt-0.5 truncate">
+                                      [{cp.brand}] SKU: {cp.sku}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
                       </div>
 
-                      <button
-                        onClick={() =>
-                          onOpenTaskPublish(product, {
-                            id: `cross-practice-${item.productId}`,
-                            category: 'practice',
-                            title: `【连带促单演练】${product.name.split(' ')[0]} + ${item.productName} 搭配销售话术`,
-                          })
-                        }
-                        className="px-3 py-1.5 bg-[#FFF7ED] hover:bg-[#FFEDD5] text-[#9E4A2B] border border-[#FED7AA] font-semibold rounded-lg text-xs transition-colors cursor-pointer flex items-center gap-1.5"
-                      >
-                        <MessageSquare className="w-3.5 h-3.5" />
-                        <span>发布连带实战练习</span>
-                      </button>
+                      {/* Rationale & Pitch */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                        <div className="bg-[#FAF8F5] p-3 rounded-lg border border-[#EAE6DD] space-y-1">
+                          <span className="font-bold text-[#1F2937] flex items-center gap-1">
+                            <span>💡 搭配推荐理由:</span>
+                          </span>
+                          <p className="text-[#4B5563] text-[11px] leading-relaxed">
+                            {combo.recommendReason ||
+                              combo.description ||
+                              '核心产品聚焦解决主诉求，连带产品提供功效叠加与日常护理闭环，有效提升成套带走率。'}
+                          </p>
+                        </div>
+
+                        <div className="bg-[#FFFBF7] p-3 rounded-lg border border-[#FED7AA] space-y-1">
+                          <span className="font-bold text-[#9A3412] flex items-center gap-1">
+                            <span>🗣️ 连带销售黄金话术:</span>
+                          </span>
+                          <p className="text-[#9A3412] text-[11px] font-medium leading-relaxed italic">
+                            {combo.recommendedPitch ||
+                              '“美女，搭配这款连带产品一起使用，不仅肤感提升，持妆和养护效果还能翻倍！”'}
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Associated Scenario Scripts Section */}
+                      <div className="pt-2 border-t border-[#F0ECE3] space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-xs text-[#1F2937] flex items-center gap-1">
+                              <BookOpen className="w-3.5 h-3.5 text-[#9E4A2B]" />
+                              <span>关联场景剧本 ({comboScripts.length})</span>
+                            </span>
+                            <span className="text-[11px] text-[#6B7280]">
+                              专柜实战对练资产
+                            </span>
+                          </div>
+
+                          {onCreateScriptForCombo && (
+                            <button
+                              type="button"
+                              onClick={() => onCreateScriptForCombo(combo)}
+                              className="px-2.5 py-1 bg-white hover:bg-orange-50 text-[#9E4A2B] border border-orange-200 hover:border-orange-300 rounded-md text-[11px] font-semibold transition-colors flex items-center gap-1 cursor-pointer shadow-2xs"
+                            >
+                              <Plus className="w-3 h-3" />
+                              <span>新建关联剧本</span>
+                            </button>
+                          )}
+                        </div>
+
+                        {comboScripts.length > 0 ? (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                            {comboScripts.map((sc) => (
+                              <div
+                                key={sc.id}
+                                className="p-3 bg-[#FAF9F7] hover:bg-white rounded-lg border border-[#EAE6DD] hover:border-[#D6D0C4] flex flex-col justify-between gap-2.5 transition-all shadow-2xs"
+                              >
+                                <div className="space-y-1">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="font-bold text-xs text-[#1F2937] truncate">
+                                      {sc.title}
+                                    </span>
+                                    <span className="text-[10px] bg-orange-100 text-[#9E4A2B] px-1.5 py-0.2 rounded font-semibold shrink-0">
+                                      {sc.category}
+                                    </span>
+                                  </div>
+                                  <p className="text-[11px] text-[#6B7280] line-clamp-1">
+                                    {sc.sceneDescription}
+                                  </p>
+                                  <div className="flex items-center gap-2 text-[10px] text-gray-500 pt-0.5">
+                                    <span>步骤数: {sc.steps?.length || 3}步</span>
+                                    <span>·</span>
+                                    <span>演练次数: {sc.usageCount || 0}次</span>
+                                  </div>
+                                </div>
+
+                                <div className="flex items-center justify-between pt-1 border-t border-[#F0ECE3]">
+                                  <div className="flex items-center gap-1 flex-wrap">
+                                    {(sc.scenarioTags.scenarios || []).slice(0, 1).map((tag, tIdx) => (
+                                      <span
+                                        key={tIdx}
+                                        className="text-[9px] bg-gray-100 text-gray-600 px-1.5 py-0.2 rounded"
+                                      >
+                                        #{tag}
+                                      </span>
+                                    ))}
+                                  </div>
+
+                                  <div className="flex items-center gap-1.5">
+                                    {onNavigateToScript && (
+                                      <button
+                                        type="button"
+                                        onClick={() => onNavigateToScript(sc.id)}
+                                        className="px-2 py-0.5 bg-white text-[#9E4A2B] border border-[#FED7AA] hover:bg-orange-50 rounded text-[10px] font-semibold transition-colors cursor-pointer"
+                                      >
+                                        查看剧本
+                                      </button>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={() =>
+                                        onOpenTaskPublish(product, {
+                                          id: sc.id,
+                                          category: 'practice',
+                                          title: `【连带实战演练】${sc.title}`,
+                                        })
+                                      }
+                                      className="px-2 py-0.5 bg-[#9E4A2B] hover:bg-[#853C21] text-white rounded text-[10px] font-semibold transition-colors cursor-pointer flex items-center gap-1"
+                                    >
+                                      <MessageSquare className="w-2.5 h-2.5" />
+                                      <span>发布对练</span>
+                                    </button>
+                                  </div>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          /* No scripts yet for this combo */
+                          <div className="p-3.5 bg-orange-50/60 border border-dashed border-orange-300 rounded-lg flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                            <div className="space-y-0.5">
+                              <div className="font-semibold text-[#9A3412] flex items-center gap-1.5">
+                                <span>⚠️ 暂未关联场景剧本</span>
+                              </div>
+                              <p className="text-[11px] text-[#9A3412]/80 leading-relaxed">
+                                为该组合创建专项对练剧本，提升BA连带话术熟练度与推介成交率。点击右侧直接进入剧本创建并自动预填。
+                              </p>
+                            </div>
+
+                            {onCreateScriptForCombo && (
+                              <button
+                                type="button"
+                                onClick={() => onCreateScriptForCombo(combo)}
+                                className="px-3 py-1.5 bg-[#9E4A2B] hover:bg-[#853C21] text-white rounded-lg text-xs font-semibold shrink-0 shadow-xs transition-colors cursor-pointer flex items-center gap-1"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                                <span>去创建剧本</span>
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
-
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2 border-t border-[#F0EDE6] text-xs">
-                      <div className="bg-[#FAF8F5] p-2.5 rounded-lg border border-[#EAE6DD]">
-                        <span className="font-semibold text-[#1F2937] block mb-1">
-                          💡 推荐搭配理由 (Cross-sell Rationale):
-                        </span>
-                        <p className="text-[#4B5563] leading-relaxed">{item.recommendReason}</p>
-                      </div>
-
-                      <div className="bg-[#FFFBF7] p-2.5 rounded-lg border border-[#FDE3D3]">
-                        <span className="font-semibold text-[#9E4A2B] block mb-1">
-                          🗣️ 推荐连带推介金句话术 (BA Pitch):
-                        </span>
-                        <p className="text-[#9E4A2B] font-medium leading-relaxed italic">
-                          {item.recommendedPitch}
-                        </p>
-                      </div>
-                    </div>
-
-                    {item.associatedPracticeScene && (
-                      <div className="flex items-center justify-between text-[11px] bg-[#F3F4F6] px-3 py-1.5 rounded-lg text-[#4B5563]">
-                        <span className="flex items-center gap-1.5">
-                          <Bot className="w-3.5 h-3.5 text-[#4F46E5]" />
-                          <span>已关联对练场景: <strong>{item.associatedPracticeScene}</strong></span>
-                        </span>
-                        <span className="text-[#059669] font-medium">支持BA场景模拟考核</span>
-                      </div>
-                    )}
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
-
-            {/* Add Cross Sell Modal */}
-            {showAddCrossModal && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
-                <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-5 border border-[#E5E1D8] space-y-4">
-                  <div className="flex items-center justify-between border-b border-[#EAE7E0] pb-3">
-                    <h3 className="font-bold text-sm text-[#1F2937]">添加连带销售产品关系</h3>
-                    <button
-                      onClick={() => setShowAddCrossModal(false)}
-                      className="text-gray-400 hover:text-gray-600"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-
-                  <form onSubmit={handleSaveCrossSell} className="space-y-3 text-xs">
-                    <div>
-                      <label className="block text-xs font-medium text-[#4B5563] mb-1">
-                        选择连带搭配品
-                      </label>
-                      <select
-                        value={selectedCrossProdId}
-                        onChange={(e) => setSelectedCrossProdId(e.target.value)}
-                        className="w-full px-3 py-2 border border-[#D6D0C4] rounded-lg bg-white"
-                      >
-                        {allProducts
-                          .filter((p) => p.id !== product.id)
-                          .map((p) => (
-                            <option key={p.id} value={p.id}>
-                              [{p.brand}] {p.name} ({p.roles.join('/')})
-                            </option>
-                          ))}
-                      </select>
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-medium text-[#4B5563] mb-1">
-                        推荐理由 (例如: 提升底妆服帖度、延长持妆时间)
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={newReason}
-                        onChange={(e) => setNewReason(e.target.value)}
-                        placeholder="例如: 配合粉底液锁妆，水光感加倍不脱妆"
-                        className="w-full px-3 py-2 border border-[#D6D0C4] rounded-lg bg-white"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-medium text-[#4B5563] mb-1">
-                        连带推荐黄金推介话术 (BA专柜直接使用)
-                      </label>
-                      <textarea
-                        rows={2}
-                        required
-                        value={newPitch}
-                        onChange={(e) => setNewPitch(e.target.value)}
-                        placeholder="例如: “美女，化好底妆搭配这款定妆喷雾，底妆牢牢焊在脸上，带妆一整天都不掉！”"
-                        className="w-full px-3 py-2 border border-[#D6D0C4] rounded-lg bg-white"
-                      />
-                    </div>
-
-                    <div className="pt-2 flex justify-end gap-2">
-                      <button
-                        type="button"
-                        onClick={() => setShowAddCrossModal(false)}
-                        className="px-3 py-1.5 bg-gray-100 text-gray-700 rounded-lg text-xs"
-                      >
-                        取消
-                      </button>
-                      <button
-                        type="submit"
-                        className="px-4 py-1.5 bg-[#9E4A2B] text-white rounded-lg text-xs font-medium"
-                      >
-                        保存连带关系
-                      </button>
-                    </div>
-                  </form>
-                </div>
-              </div>
-            )}
           </div>
         )}
 

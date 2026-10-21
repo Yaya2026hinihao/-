@@ -58,7 +58,11 @@ export interface ProductCombination {
   mainProductId: string;
   crossSellingProductIds: string[];
   description?: string;
+  recommendReason?: string;
+  recommendedPitch?: string;
   isConfirmed?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface ScriptStep {
@@ -81,12 +85,13 @@ export interface ScenarioScriptItem {
   scenePrompt: string; // 场景提示词
   coverImage?: string; // 场景配图
   
-  // 核心新增：关联产品组合 (优先关联产品管理中已经建立的连带销售组合)
+  // 核心升级：关联产品组合 (支持分别选择主推品与连带品，并标识是否匹配正式组合)
   linkedCombination?: {
-    combinationId: string;
-    combinationName: string;
-    mainProductId: string;
-    crossSellingProductIds: string[];
+    combinationId?: string; // 匹配的正式组合 ID (若有)
+    combinationName?: string; // 组合名称 (如 "【YOU】Skin Tint + 定妆喷雾 锁妆组合" 或 "自定义搭配")
+    mainProductId: string; // 主推品 ID (必选)
+    crossSellingProductIds: string[]; // 连带品 ID 列表 (多选)
+    pairingType?: 'official' | 'custom'; // 'official' (已匹配正式组合) | 'custom' (自定义搭配)
   };
   
   // 核心升级：场景标签配置 (全部可选，不设必填限制)

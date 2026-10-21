@@ -105,6 +105,8 @@ export const INITIAL_PRODUCT_COMBINATIONS: ProductCombination[] = [
     mainProductId: 'prod-1',
     crossSellingProductIds: ['prod-3', 'prod-5'],
     description: '针对年轻白领与夏日出油脱妆痛点，采用“三明治定妆法”，延长持妆至16小时。',
+    recommendReason: '底妆水光粉底与雾面成膜定妆喷雾搭配，解决T区出油浮粉，妆效更清透持久。',
+    recommendedPitch: '“美女，化好底妆一定要搭配这款定妆喷雾，喷一喷底妆牢牢焊在脸上，带妆一整天都不暗沉！”',
     isConfirmed: true,
   },
   {
@@ -113,6 +115,8 @@ export const INITIAL_PRODUCT_COMBINATIONS: ProductCombination[] = [
     mainProductId: 'prod-lvj-shampoo',
     crossSellingProductIds: ['prod-3'],
     description: '针对细软扁塌且发尾干枯的油头顾客，头皮水杨酸深层控油，发丝氨基酸柔顺抚躁。',
+    recommendReason: '头皮深层控油清洁同时，发丝需要专用护发素抚平毛鳞片，避免清洁后发丝干涩打结。',
+    recommendedPitch: '“洗发水帮您彻底解决头皮油腻扁塌，搭配这款柔顺护发素涂在发梢，洗后头发又蓬松又顺滑，像做完沙龙护理一样！”',
     isConfirmed: true,
   },
   {
@@ -121,6 +125,8 @@ export const INITIAL_PRODUCT_COMBINATIONS: ProductCombination[] = [
     mainProductId: 'prod-8',
     crossSellingProductIds: ['prod-6'],
     description: '高倍防晒阻隔紫外线，搭配积雪草精华修护晒后受损屏障，抗光老抗暗沉。',
+    recommendReason: '户外紫外线损伤屏障，防晒前抗氧打底、防晒后积雪草褪红维稳，建立全天候防护闭环。',
+    recommendedPitch: '“紫外线是皮肤衰老的第一元凶，防晒前用这款精华打底，不仅防晒伤，更能深层修护暗沉与发红！”',
     isConfirmed: true,
   },
   {
@@ -129,6 +135,8 @@ export const INITIAL_PRODUCT_COMBINATIONS: ProductCombination[] = [
     mainProductId: 'prod-2',
     crossSellingProductIds: ['prod-5'],
     description: '唇泥哑光质感，搭配粉扑晕染打造空气感微醺腮红，提升连带成单率。',
+    recommendReason: '丝绒哑光质地，既是显白口红，又能用粉扑拍在面颊做同色系腮红，妆容统一高级。',
+    recommendedPitch: '“这款唇泥颜色特别显白高级，您看用小粉扑顺手带到苹果肌当腮红，一分钟搞定氛围感纯欲妆！”',
     isConfirmed: true,
   },
 ];

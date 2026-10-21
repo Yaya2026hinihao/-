@@ -28,6 +28,7 @@ export type NavSection =
   | 'dashboard'
   | 'tasks'
   | 'ai-recommendations'
+  | 'cross-selling'
   | 'exams'
   | 'courseware'
   | 'digital-humans'
@@ -37,6 +38,7 @@ interface SidebarProps {
   currentSection: NavSection;
   onSelectSection: (section: NavSection) => void;
   productCount: number;
+  combinationCount?: number;
   digitalHumanCount?: number;
   scenarioScriptCount?: number;
   onOpenTagManage?: () => void;
@@ -46,6 +48,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   currentSection,
   onSelectSection,
   productCount,
+  combinationCount = 4,
   digitalHumanCount = 27,
   scenarioScriptCount = 20,
   onOpenTagManage,
@@ -179,6 +182,21 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 <span>产品列表</span>
               </div>
               <span className="text-[10px] text-gray-400">{productCount} 款</span>
+            </button>
+
+            <button
+              onClick={() => onSelectSection('cross-selling')}
+              className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-md transition-colors cursor-pointer ${
+                currentSection === 'cross-selling'
+                  ? 'bg-white/10 text-white font-medium'
+                  : 'text-[#9CA3AF] hover:text-white hover:bg-[#282A32]'
+              }`}
+            >
+              <div className="flex items-center gap-2">
+                <span className={`w-1.5 h-1.5 rounded-full ${currentSection === 'cross-selling' ? 'bg-[#E26A3B]' : 'bg-gray-500'}`} />
+                <span>连带销售</span>
+              </div>
+              <span className="text-[10px] text-gray-400">{combinationCount || 4} 组</span>
             </button>
 
             <button
