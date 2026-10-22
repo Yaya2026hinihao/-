@@ -48,6 +48,7 @@ export interface DigitalHumanCustomer {
   
   createdAt: string;
   updatedAt: string;
+  creator?: string;
   usageCount?: number;
   avgScore?: number;
 }
@@ -106,5 +107,7 @@ export interface ScenarioScriptItem {
   steps: ScriptStep[]; // 剧本步骤与提示节点
   createdAt: string;
   updatedAt: string;
+  creator?: string;
   usageCount?: number;
+  avgScore?: number;
 }
