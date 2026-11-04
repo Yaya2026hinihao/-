@@ -857,58 +857,67 @@ export const HeroProductDetailView: React.FC<HeroProductDetailViewProps> = ({
             </div>
 
             {/* Core Trend Chart: 堆叠柱状图 + 折线图组合 (每月划分为 4 个区间，双纵轴设计) */}
-            <div className="bg-white p-5 rounded-xl border border-[#E8E6E1] space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-[#F0ECE3] gap-2">
-                <div>
-                  <h4 className="text-sm font-bold text-[#111827] flex items-center gap-2">
+            <div className="bg-white p-5 rounded-xl border border-[#E8E6E1] space-y-5">
+              {/* Header with Title and Legend */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-3 border-b border-[#F0ECE3] gap-3">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 bg-[#FAF3F0] rounded-lg border border-[#F3D5CA]">
                     <BarChart3 className="w-4 h-4 text-[#9E4A2B]" />
-                    <span>月内 4 区间培训开展与实际销量趋势</span>
-                  </h4>
+                  </div>
+                  <div>
+                    <h4 className="text-sm font-bold text-[#111827]">
+                      月内 4 区间培训开展与实际销量趋势
+                    </h4>
+                    <p className="text-[11px] text-[#6B7280]">
+                      左轴对应培训参与总人次（堆叠柱），右轴对应实际销量 SELL OUT（绿色折线）
+                    </p>
+                  </div>
                 </div>
 
                 {/* Legends */}
-                <div className="flex flex-wrap items-center gap-3 text-xs text-[#6B7280]">
+                <div className="flex flex-wrap items-center gap-3.5 text-xs text-[#6B7280]">
                   <div className="flex items-center gap-1.5">
-                    <span className="w-3 h-3 rounded-xs bg-[#2563EB]" />
+                    <span className="w-3 h-3 rounded-xs bg-[#3B82F6]" />
                     <span>学习人次</span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <span className="w-3 h-3 rounded-xs bg-[#EA580C]" />
+                    <span className="w-3 h-3 rounded-xs bg-[#F97316]" />
                     <span>练习提交人次</span>
                   </div>
                   <div className="flex items-center gap-1.5">
-                    <span className="w-3 h-3 rounded-xs bg-[#9333EA]" />
+                    <span className="w-3 h-3 rounded-xs bg-[#8B5CF6]" />
                     <span>考试人次</span>
                   </div>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 bg-[#ECFDF5] px-2 py-0.5 rounded-full border border-[#A7F3D0]">
                     <span className="w-3.5 h-1 rounded-full bg-[#059669]" />
                     <span className="w-2 h-2 rounded-full border-2 border-[#059669] bg-white -ml-2" />
-                    <span>SELL OUT 销量</span>
+                    <span className="font-semibold text-[#047857]">SELL OUT 实际销量</span>
                   </div>
                 </div>
               </div>
 
-              {/* Responsive SVG/HTML Visualization Canvas */}
+              {/* Dual-Axis Enterprise Chart Visualization */}
               {(() => {
-                const maxTotalPersonTimes = Math.max(...trendIntervals.map(i => i.totalPersonTimes), 10);
-                const salesValues = trendIntervals.map(i => i.sellOutUnits);
-                const minSalesVal = Math.min(...salesValues);
-                const maxSalesVal = Math.max(...salesValues);
-                // 动态计算适度舒展的销售范围，保证折线拥有优雅舒展的波浪起伏感而不被压缩扁平
-                const salesPadding = Math.max((maxSalesVal - minSalesVal) * 0.45, minSalesVal * 0.25, 40);
-                const salesFloor = Math.max(0, Math.floor(minSalesVal - salesPadding));
-                const salesCeil = Math.ceil(maxSalesVal + salesPadding);
-                const salesSpan = Math.max(salesCeil - salesFloor, 50);
+                // 1. 独立计算左纵轴 (培训人次) 刻度体系 (5 个水平刻度: 100%, 75%, 50%, 25%, 0%)
+                const rawMaxTraining = Math.max(...trendIntervals.map(i => i.totalPersonTimes), 20);
+                const trainingStep = Math.max(10, Math.ceil((rawMaxTraining * 1.2) / 4 / 10) * 10);
+                const trainingMax = trainingStep * 4;
+                const trainingTicks = [trainingMax, trainingStep * 3, trainingStep * 2, trainingStep, 0];
 
-                // 生成折线图数据点
+                // 2. 独立计算右纵轴 (实际销量) 刻度体系 (5 个水平刻度: 100%, 75%, 50%, 25%, 0%)
+                const rawMaxSales = Math.max(...trendIntervals.map(i => i.sellOutUnits), 50);
+                const salesStep = Math.max(25, Math.ceil((rawMaxSales * 1.25) / 4 / 25) * 25);
+                const salesMax = salesStep * 4;
+                const salesTicks = [salesMax, salesStep * 3, salesStep * 2, salesStep, 0];
+
+                // 3. 计算折线图百分比坐标 (x 居中于各区间: 12.5%, 37.5%, 62.5%, 87.5%; y 依据右轴准确映射)
                 const linePoints = trendIntervals.map((interval, idx) => {
                   const x = 12.5 + idx * 25;
-                  const normalized = (interval.sellOutUnits - salesFloor) / salesSpan;
-                  const y = 80 - normalized * 58;
+                  const y = Math.max(4, Math.min(96, 100 - (interval.sellOutUnits / salesMax) * 100));
                   return { x, y, interval };
                 });
 
-                // 生成平滑三阶贝塞尔曲线及柔和渐变底色
+                // 生成平滑三阶贝塞尔曲线 SVG 路径
                 let curvePath = `M ${linePoints[0].x} ${linePoints[0].y}`;
                 for (let i = 0; i < linePoints.length - 1; i++) {
                   const p0 = linePoints[i];
@@ -916,237 +925,266 @@ export const HeroProductDetailView: React.FC<HeroProductDetailViewProps> = ({
                   const dx = (p1.x - p0.x) / 2;
                   curvePath += ` C ${p0.x + dx} ${p0.y}, ${p1.x - dx} ${p1.y}, ${p1.x} ${p1.y}`;
                 }
-                const areaPath = `${curvePath} L ${linePoints[linePoints.length - 1].x} 92 L ${linePoints[0].x} 92 Z`;
+                const areaPath = `${curvePath} L ${linePoints[linePoints.length - 1].x} 100 L ${linePoints[0].x} 100 Z`;
 
                 return (
-                  <div className="relative pt-2 pb-1">
-                    {/* 坐标轴说明：仅保留纵轴为培训参与人次，横轴时间一目了然不冗余 */}
-                    <div className="flex items-center justify-between text-xs text-[#6B7280] px-2 mb-3 font-medium">
-                      <div className="flex items-center gap-1.5 text-[#374151]">
-                        <span className="font-semibold text-[#111827]">纵轴：</span>
-                        <span>培训参与人次</span>
-                        <span className="text-[11px] text-[#9CA3AF] font-mono">(人次)</span>
-                      </div>
-                      <div className="flex items-center gap-1.5 text-[#059669]">
-                        <span className="w-2 h-2 rounded-full bg-[#059669]" />
-                        <span>实际销量 SELL OUT (件)</span>
-                      </div>
-                    </div>
-
-                    {/* Chart Body with Spacious Height */}
-                    <div className="relative h-64 w-full border-b border-[#E5E1D8]">
-                      {/* Horizontal Grid Lines */}
-                      <div className="absolute inset-0 flex flex-col justify-between pointer-events-none opacity-30">
-                        <div className="border-b border-dashed border-[#D6D0C4] w-full" />
-                        <div className="border-b border-dashed border-[#D6D0C4] w-full" />
-                        <div className="border-b border-dashed border-[#D6D0C4] w-full" />
-                        <div className="border-b border-[#E5E1D8] w-full" />
+                  <div className="space-y-2">
+                    {/* 整体图表容器：包含左纵轴、中央主画布、右纵轴 */}
+                    <div className="flex items-stretch gap-2 select-none">
+                      {/* Left Y-Axis: 培训参与人次刻度 */}
+                      <div className="w-14 sm:w-16 flex flex-col justify-between py-1 text-right border-r border-[#E5E1D8] pr-2">
+                        <div className="text-[11px] font-bold text-[#1E293B] leading-tight mb-2">
+                          <div>培训人次</div>
+                          <div className="text-[10px] font-normal text-[#94A3B8] font-mono">(人次)</div>
+                        </div>
+                        <div className="flex-1 flex flex-col justify-between font-mono text-[11px] font-semibold text-[#64748B] pt-1">
+                          {trainingTicks.map((val, idx) => (
+                            <span key={idx} className="tabular-nums">
+                              {val.toLocaleString()}
+                            </span>
+                          ))}
+                        </div>
                       </div>
 
-                      {/* 1. Stacked Bars Container */}
-                      <div className="absolute inset-0 flex justify-between items-end px-4 z-10">
-                        {trendIntervals.map((item) => {
-                          const totalHeightPct = Math.min(85, Math.max(15, (item.totalPersonTimes / maxTotalPersonTimes) * 80));
-                          const studyPct = item.totalPersonTimes > 0 ? (item.studyPersonTimes / item.totalPersonTimes) * 100 : 0;
-                          const practicePct = item.totalPersonTimes > 0 ? (item.practicePersonTimes / item.totalPersonTimes) * 100 : 0;
-                          const examPct = item.totalPersonTimes > 0 ? (item.examPersonTimes / item.totalPersonTimes) * 100 : 0;
-                          const isHovered = hoveredIntervalId === item.intervalId;
+                      {/* Center Canvas: 网格线 + 堆叠柱状图 + 独立上层平滑折线 + 独立数据徽章 */}
+                      <div className="flex-1 relative h-80">
+                        {/* 5 条等距水平参考网格线 (对齐左右两侧的刻度点) */}
+                        <div className="absolute inset-0 flex flex-col justify-between pointer-events-none">
+                          <div className="border-b border-dashed border-[#E2E8F0] w-full" />
+                          <div className="border-b border-dashed border-[#E2E8F0] w-full" />
+                          <div className="border-b border-dashed border-[#E2E8F0] w-full" />
+                          <div className="border-b border-dashed border-[#E2E8F0] w-full" />
+                          <div className="border-b-2 border-[#CBD5E1] w-full" />
+                        </div>
 
-                          return (
-                            <div
-                              key={item.intervalId}
-                              onMouseEnter={() => setHoveredIntervalId(item.intervalId)}
-                              onMouseLeave={() => setHoveredIntervalId(null)}
-                              className="flex-1 flex flex-col items-center justify-end h-full relative cursor-pointer group"
-                            >
-                              {/* Stacked Pillar */}
+                        {/* 1. 堆叠柱状图容器 (Layer: z-10) */}
+                        <div className="absolute inset-0 flex justify-between items-end z-10 px-2 sm:px-4">
+                          {trendIntervals.map((item) => {
+                            const totalHeightPct = Math.min(95, Math.max(6, (item.totalPersonTimes / trainingMax) * 100));
+                            const studyPct = item.totalPersonTimes > 0 ? (item.studyPersonTimes / item.totalPersonTimes) * 100 : 0;
+                            const practicePct = item.totalPersonTimes > 0 ? (item.practicePersonTimes / item.totalPersonTimes) * 100 : 0;
+                            const examPct = item.totalPersonTimes > 0 ? (item.examPersonTimes / item.totalPersonTimes) * 100 : 0;
+                            const isHovered = hoveredIntervalId === item.intervalId;
+
+                            return (
                               <div
-                                style={{ height: `${totalHeightPct}%` }}
-                                className={`w-12 sm:w-16 rounded-t-lg overflow-hidden flex flex-col justify-end transition-all duration-200 shadow-xs ${
-                                  isHovered ? 'ring-2 ring-[#9E4A2B] shadow-md scale-102' : ''
+                                key={item.intervalId}
+                                onMouseEnter={() => setHoveredIntervalId(item.intervalId)}
+                                onMouseLeave={() => setHoveredIntervalId(null)}
+                                className={`flex-1 flex flex-col items-center justify-end h-full relative cursor-pointer transition-colors duration-150 rounded-xl py-1 ${
+                                  isHovered ? 'bg-[#F8FAFC]' : ''
                                 }`}
                               >
-                                {/* 顶部: 考试人次 (紫色) */}
-                                <div
-                                  style={{ height: `${examPct}%` }}
-                                  className="bg-[#9333EA] w-full transition-all"
-                                  title={`考试人次: ${item.examPersonTimes}`}
-                                />
-                                {/* 中间: 练习提交人次 (橙色) */}
-                                <div
-                                  style={{ height: `${practicePct}%` }}
-                                  className="bg-[#EA580C] w-full transition-all"
-                                  title={`练习人次: ${item.practicePersonTimes}`}
-                                />
-                                {/* 底部: 学习人次 (蓝色) */}
-                                <div
-                                  style={{ height: `${studyPct}%` }}
-                                  className="bg-[#2563EB] w-full transition-all"
-                                  title={`学习人次: ${item.studyPersonTimes}`}
-                                />
-                              </div>
+                                {/* 柱顶培训人次总数标签 */}
+                                <div className="text-[11px] font-mono font-bold text-[#475569] mb-1.5 whitespace-nowrap bg-white/90 px-1.5 py-0.5 rounded-md border border-[#E2E8F0] shadow-2xs">
+                                  {item.totalPersonTimes.toLocaleString()}
+                                  <span className="text-[9px] font-normal text-[#94A3B8] ml-0.5">人次</span>
+                                </div>
 
-                              {/* Number on top of bar */}
-                              <div className="text-[10px] font-mono font-bold text-[#6B7280] mt-1">
-                                {item.totalPersonTimes}
+                                {/* 堆叠柱体 */}
+                                <div
+                                  style={{ height: `${totalHeightPct}%` }}
+                                  className={`w-12 sm:w-16 rounded-t-lg overflow-hidden flex flex-col justify-end transition-all duration-200 shadow-xs ${
+                                    isHovered ? 'ring-2 ring-[#3B82F6] shadow-md scale-102' : ''
+                                  }`}
+                                >
+                                  {/* 顶部: 考试人次 (紫色) */}
+                                  <div
+                                    style={{ height: `${examPct}%` }}
+                                    className="bg-[#8B5CF6] hover:bg-[#7C3AED] w-full transition-colors border-b border-white/30"
+                                    title={`考试人次: ${item.examPersonTimes}`}
+                                  />
+                                  {/* 中间: 练习提交人次 (橙色) */}
+                                  <div
+                                    style={{ height: `${practicePct}%` }}
+                                    className="bg-[#F97316] hover:bg-[#EA580C] w-full transition-colors border-b border-white/30"
+                                    title={`练习提交人次: ${item.practicePersonTimes}`}
+                                  />
+                                  {/* 底部: 学习人次 (蓝色) */}
+                                  <div
+                                    style={{ height: `${studyPct}%` }}
+                                    className="bg-[#3B82F6] hover:bg-[#2563EB] w-full transition-colors"
+                                    title={`学习人次: ${item.studyPersonTimes}`}
+                                  />
+                                </div>
                               </div>
-                            </div>
-                          );
-                        })}
+                            );
+                          })}
+                        </div>
+
+                        {/* 2. 独立上层 SVG 销量平滑折线 (Layer: z-20，绝不被柱体遮挡) */}
+                        <svg
+                          className="absolute inset-0 w-full h-full pointer-events-none z-20 overflow-visible"
+                          viewBox="0 0 100 100"
+                          preserveAspectRatio="none"
+                        >
+                          <defs>
+                            <linearGradient id="salesEmeraldGradient" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="#059669" stopOpacity="0.18" />
+                              <stop offset="100%" stopColor="#059669" stopOpacity="0.0" />
+                            </linearGradient>
+                            <filter id="salesLineShadow" x="-20%" y="-20%" width="140%" height="140%">
+                              <feDropShadow dx="0" dy="3" stdDeviation="2.5" floodColor="#047857" floodOpacity="0.32" />
+                            </filter>
+                          </defs>
+
+                          {/* 柔和半透明翡翠绿渐变面积底色 */}
+                          <path
+                            d={areaPath}
+                            fill="url(#salesEmeraldGradient)"
+                            className="transition-all duration-300"
+                          />
+
+                          {/* 加粗、高对比度平滑主折线 */}
+                          <path
+                            d={curvePath}
+                            fill="none"
+                            stroke="#059669"
+                            strokeWidth="3.6"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            filter="url(#salesLineShadow)"
+                            vectorEffect="non-scaling-stroke"
+                            className="transition-all duration-300"
+                          />
+                        </svg>
+
+                        {/* 3. 独立 HTML 销量数据节点与不压缩胶囊标签 (Layer: z-30，原生字体不拉伸变形) */}
+                        <div className="absolute inset-0 pointer-events-none z-30">
+                          {linePoints.map((pt) => {
+                            const isHovered = hoveredIntervalId === pt.interval.intervalId;
+                            return (
+                              <div
+                                key={pt.interval.intervalId}
+                                style={{ left: `${pt.x}%`, top: `${pt.y}%` }}
+                                className="absolute pointer-events-auto"
+                              >
+                                {/* 折线节点双层圆环 */}
+                                <div
+                                  className={`w-4 h-4 rounded-full bg-white border-[3px] border-[#059669] shadow-md flex items-center justify-center -translate-x-1/2 -translate-y-1/2 transition-transform duration-200 ${
+                                    isHovered ? 'scale-130 ring-4 ring-[#10B981]/40' : ''
+                                  }`}
+                                >
+                                  <div className="w-1.5 h-1.5 rounded-full bg-[#059669]" />
+                                </div>
+
+                                {/* 销量高对比度胶囊标签 (浮动在节点上方，加阴影与微标，千分符，清晰防遮挡) */}
+                                <div
+                                  className={`absolute -translate-x-1/2 -translate-y-[155%] transition-all duration-200 ${
+                                    isHovered ? 'scale-110 -translate-y-[165%]' : ''
+                                  }`}
+                                >
+                                  <div className="bg-[#047857] hover:bg-[#065F46] text-white px-2.5 py-1 rounded-full shadow-md flex items-center gap-1.5 font-mono font-bold text-xs whitespace-nowrap border border-[#065F46]">
+                                    <TrendingUp className="w-3 h-3 text-[#A7F3D0]" />
+                                    <span>{pt.interval.sellOutUnits.toLocaleString()}</span>
+                                    <span className="text-[10px] font-normal text-[#D1FAE5]">件</span>
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
 
-                      {/* 2. SVG Line Chart Overlay for SELL OUT (平滑美观优美贝塞尔曲线 + 数据胶囊标签) */}
-                      <svg
-                        className="absolute inset-0 w-full h-full pointer-events-none z-20"
-                        viewBox="0 0 100 100"
-                        preserveAspectRatio="none"
-                      >
-                        <defs>
-                          <linearGradient id="sellOutGreenGlow" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="0%" stopColor="#059669" stopOpacity="0.16" />
-                            <stop offset="100%" stopColor="#059669" stopOpacity="0.01" />
-                          </linearGradient>
-                        </defs>
-
-                        {/* 优雅柔和半透明渐变区域 */}
-                        <path
-                          d={areaPath}
-                          fill="url(#sellOutGreenGlow)"
-                          className="transition-all duration-300"
-                        />
-
-                        {/* 平滑主绿色曲线 */}
-                        <path
-                          d={curvePath}
-                          fill="none"
-                          stroke="#059669"
-                          strokeWidth="2.8"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          vectorEffect="non-scaling-stroke"
-                          className="transition-all duration-300"
-                        />
-
-                        {/* 数据节点与销量小标签 */}
-                        {linePoints.map((pt) => {
-                          const isHovered = hoveredIntervalId === pt.interval.intervalId;
-                          return (
-                            <g key={pt.interval.intervalId}>
-                              {/* 悬停光晕 */}
-                              {isHovered && (
-                                <circle
-                                  cx={pt.x}
-                                  cy={pt.y}
-                                  r={5.5}
-                                  fill="#059669"
-                                  fillOpacity="0.25"
-                                />
-                              )}
-                              {/* 双层精致圆点 */}
-                              <circle
-                                cx={pt.x}
-                                cy={pt.y}
-                                r={isHovered ? 4.2 : 3.2}
-                                fill="#ffffff"
-                                stroke="#059669"
-                                strokeWidth="2.2"
-                                vectorEffect="non-scaling-stroke"
-                                className="transition-all duration-200"
-                              />
-
-                              {/* 销量悬浮小胶囊标签 */}
-                              <g transform={`translate(${pt.x}, ${pt.y - 7})`}>
-                                <rect
-                                  x="-10"
-                                  y="-6"
-                                  width="20"
-                                  height="6"
-                                  rx="3"
-                                  fill="#FFFFFF"
-                                  stroke="#A7F3D0"
-                                  strokeWidth="0.7"
-                                />
-                                <text
-                                  x="0"
-                                  y="-1.8"
-                                  textAnchor="middle"
-                                  fill="#047857"
-                                  fontSize="3"
-                                  fontWeight="bold"
-                                  fontFamily="monospace"
-                                >
-                                  {pt.interval.sellOutUnits}件
-                                </text>
-                              </g>
-                            </g>
-                          );
-                        })}
-                      </svg>
-                    </div>
-
-                    {/* X-Axis Interval Labels */}
-                    <div className="flex justify-between px-4 pt-2">
-                      {trendIntervals.map((item) => (
-                        <div
-                          key={item.intervalId}
-                          className="flex-1 text-center cursor-pointer"
-                          onMouseEnter={() => setHoveredIntervalId(item.intervalId)}
-                          onMouseLeave={() => setHoveredIntervalId(null)}
-                        >
-                          <div className={`text-xs font-bold transition-colors ${
-                            hoveredIntervalId === item.intervalId ? 'text-[#9E4A2B]' : 'text-[#111827]'
-                          }`}>
-                            {item.intervalLabel}
-                          </div>
-                          <div className="text-[10px] text-[#9CA3AF] font-mono">
-                            {item.dateRange}
-                          </div>
+                      {/* Right Y-Axis: 实际销量件数刻度 */}
+                      <div className="w-14 sm:w-16 flex flex-col justify-between py-1 text-left border-l border-[#E5E1D8] pl-2">
+                        <div className="text-[11px] font-bold text-[#047857] leading-tight mb-2">
+                          <div>实际销量</div>
+                          <div className="text-[10px] font-normal text-[#059669]/70 font-mono">(件)</div>
                         </div>
-                      ))}
+                        <div className="flex-1 flex flex-col justify-between font-mono text-[11px] font-semibold text-[#059669] pt-1">
+                          {salesTicks.map((val, idx) => (
+                            <span key={idx} className="tabular-nums">
+                              {val.toLocaleString()}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
                     </div>
 
-                    {/* 鼠标悬浮查看当周紧凑明细（融入系统轻暖色调，空间与间距更紧凑，简洁易读） */}
-                    {hoveredIntervalId && (() => {
+                    {/* Bottom X-Axis: 4 个时间区间标识 (左右留出与纵轴等宽的空间，实现精准对齐) */}
+                    <div className="flex items-center gap-2 pt-1 border-t border-[#E5E1D8]">
+                      {/* 左侧空位对齐 */}
+                      <div className="w-14 sm:w-16 shrink-0" />
+
+                      {/* 4 个区间的日期标签 */}
+                      <div className="flex-1 flex justify-between px-2 sm:px-4">
+                        {trendIntervals.map((item) => (
+                          <div
+                            key={item.intervalId}
+                            className="flex-1 text-center cursor-pointer py-1 rounded-lg transition-colors"
+                            onMouseEnter={() => setHoveredIntervalId(item.intervalId)}
+                            onMouseLeave={() => setHoveredIntervalId(null)}
+                          >
+                            <div className={`text-xs font-bold transition-colors ${
+                              hoveredIntervalId === item.intervalId ? 'text-[#9E4A2B]' : 'text-[#1E293B]'
+                            }`}>
+                              {item.intervalLabel}
+                            </div>
+                            <div className="text-[11px] text-[#64748B] font-mono mt-0.5">
+                              {item.dateRange}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* 右侧空位对齐 */}
+                      <div className="w-14 sm:w-16 shrink-0" />
+                    </div>
+
+                    {/* 交互提示与悬浮当周明细面板 */}
+                    {hoveredIntervalId ? (() => {
                       const hoveredItem = trendIntervals.find(i => i.intervalId === hoveredIntervalId);
                       if (!hoveredItem) return null;
 
                       return (
-                        <div className="mt-2.5 p-2.5 bg-[#FAF8F5] rounded-xl border border-[#E8E6E1] shadow-xs animate-in fade-in zoom-in-98 duration-100">
-                          <div className="flex items-center justify-between pb-1.5 border-b border-[#EFECE5] mb-2 text-xs">
-                            <div className="flex items-center gap-1.5 font-bold text-[#111827]">
+                        <div className="mt-3 p-3 bg-[#FAF8F5] rounded-xl border border-[#E8E6E1] shadow-xs animate-in fade-in zoom-in-98 duration-100">
+                          <div className="flex items-center justify-between pb-2 border-b border-[#EFECE5] mb-2.5 text-xs">
+                            <div className="flex items-center gap-2 font-bold text-[#111827]">
                               <Calendar className="w-3.5 h-3.5 text-[#9E4A2B]" />
-                              <span>{hoveredItem.intervalLabel} ({hoveredItem.dateRange}) 表现</span>
+                              <span>{hoveredItem.intervalLabel} ({hoveredItem.dateRange}) 表现明细</span>
                             </div>
-                            <div className="font-mono text-xs font-bold text-[#059669] bg-[#ECFDF5] px-2 py-0.5 rounded-md border border-[#A7F3D0]">
-                              销量: {hoveredItem.sellOutUnits.toLocaleString()} 件
+                            <div className="font-mono text-xs font-bold text-[#047857] bg-[#ECFDF5] px-2.5 py-0.5 rounded-full border border-[#A7F3D0] flex items-center gap-1">
+                              <span className="w-1.5 h-1.5 rounded-full bg-[#059669]" />
+                              <span>实际销量: {hoveredItem.sellOutUnits.toLocaleString()} 件</span>
                             </div>
                           </div>
 
-                          {/* 4 个紧凑小指标卡片，间距缩小至 gap-2，简洁清晰 */}
                           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                            <div className="bg-white px-2.5 py-1.5 rounded-lg border border-[#EFECE5] flex items-center justify-between">
-                              <span className="text-[11px] text-[#2563EB] font-medium">学习完成</span>
+                            <div className="bg-white px-3 py-2 rounded-lg border border-[#EFECE5] flex items-center justify-between shadow-2xs">
+                              <span className="text-[11px] text-[#2563EB] font-medium flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-xs bg-[#3B82F6]" />
+                                学习完成
+                              </span>
                               <span className="font-mono font-bold text-xs text-[#111827]">
-                                {hoveredItem.studyPersonTimes} <span className="text-[10px] text-[#9CA3AF] font-normal">人次</span>
+                                {hoveredItem.studyPersonTimes} <span className="text-[10px] text-[#94A3B8] font-normal">人次</span>
                               </span>
                             </div>
 
-                            <div className="bg-white px-2.5 py-1.5 rounded-lg border border-[#EFECE5] flex items-center justify-between">
-                              <span className="text-[11px] text-[#EA580C] font-medium">练习提交</span>
+                            <div className="bg-white px-3 py-2 rounded-lg border border-[#EFECE5] flex items-center justify-between shadow-2xs">
+                              <span className="text-[11px] text-[#EA580C] font-medium flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-xs bg-[#F97316]" />
+                                练习有效提交
+                              </span>
                               <span className="font-mono font-bold text-xs text-[#111827]">
-                                {hoveredItem.practicePersonTimes} <span className="text-[10px] text-[#9CA3AF] font-normal">人次</span>
+                                {hoveredItem.practicePersonTimes} <span className="text-[10px] text-[#94A3B8] font-normal">人次</span>
                               </span>
                             </div>
 
-                            <div className="bg-white px-2.5 py-1.5 rounded-lg border border-[#EFECE5] flex items-center justify-between">
-                              <span className="text-[11px] text-[#9333EA] font-medium">考试参与</span>
+                            <div className="bg-white px-3 py-2 rounded-lg border border-[#EFECE5] flex items-center justify-between shadow-2xs">
+                              <span className="text-[11px] text-[#9333EA] font-medium flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-xs bg-[#8B5CF6]" />
+                                考试参与
+                              </span>
                               <span className="font-mono font-bold text-xs text-[#111827]">
-                                {hoveredItem.examPersonTimes} <span className="text-[10px] text-[#9CA3AF] font-normal">人次</span>
+                                {hoveredItem.examPersonTimes} <span className="text-[10px] text-[#94A3B8] font-normal">人次</span>
                               </span>
                             </div>
 
-                            <div className="bg-[#FAF3F0] px-2.5 py-1.5 rounded-lg border border-[#F3D5CA] flex items-center justify-between">
-                              <span className="text-[11px] text-[#9E4A2B] font-semibold">当周总人次</span>
+                            <div className="bg-[#FAF3F0] px-3 py-2 rounded-lg border border-[#F3D5CA] flex items-center justify-between shadow-2xs">
+                              <span className="text-[11px] text-[#9E4A2B] font-semibold">
+                                当周培训总人次
+                              </span>
                               <span className="font-mono font-bold text-xs text-[#9E4A2B]">
                                 {hoveredItem.totalPersonTimes} <span className="text-[10px] text-[#9E4A2B]/70 font-normal">人次</span>
                               </span>
@@ -1154,7 +1192,11 @@ export const HeroProductDetailView: React.FC<HeroProductDetailViewProps> = ({
                           </div>
                         </div>
                       );
-                    })()}
+                    })() : (
+                      <div className="py-1 text-center text-[11px] text-[#94A3B8]">
+                        提示：鼠标悬停在各周柱体或折线节点上，可查看当周学习、练习、考试及销量的详细构成
+                      </div>
+                    )}
                   </div>
                 );
               })()}
