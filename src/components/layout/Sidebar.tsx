@@ -22,10 +22,12 @@ import {
   PenTool,
   Coins
 } from 'lucide-react';
+import { UserRolePerspective } from './Header';
 
 export type NavSection =
   | 'products'
   | 'dashboard'
+  | 'hero-products'
   | 'tasks'
   | 'ai-recommendations'
   | 'cross-selling'
@@ -42,6 +44,8 @@ interface SidebarProps {
   digitalHumanCount?: number;
   scenarioScriptCount?: number;
   onOpenTagManage?: () => void;
+  rolePerspective?: UserRolePerspective;
+  onChangePerspective?: (role: UserRolePerspective) => void;
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -52,9 +56,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
   digitalHumanCount = 27,
   scenarioScriptCount = 20,
   onOpenTagManage,
+  rolePerspective = 'HQ',
+  onChangePerspective,
 }) => {
   const isSparringActive =
     currentSection === 'digital-humans' || currentSection === 'scenario-scripts';
+  const isNationalActive = currentSection === 'dashboard' && rolePerspective === 'HQ';
+  const isRegionalActive = currentSection === 'dashboard' && rolePerspective !== 'HQ';
   return (
     <aside className="w-64 bg-[#1E1F24] text-[#A0A4AE] flex flex-col shrink-0 h-screen select-none border-r border-[#2A2B32]">
       {/* Brand Logo Header matching screenshot */}
@@ -83,9 +91,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       <div className="flex-1 overflow-y-auto px-3 py-3 space-y-0.5 text-[13px] scrollbar-thin">
         {/* 1. 全国数据 */}
         <button
-          onClick={() => onSelectSection('dashboard')}
+          onClick={() => {
+            onSelectSection('dashboard');
+            onChangePerspective?.('HQ');
+          }}
           className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors cursor-pointer ${
-            currentSection === 'dashboard'
+            isNationalActive
               ? 'bg-[#282A32] text-white font-medium'
               : 'text-[#9CA3AF] hover:bg-[#282A32] hover:text-gray-200'
           }`}
@@ -101,10 +112,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
 
         {/* 3. 区域数据 */}
-        <div className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[#9CA3AF] hover:bg-[#282A32] hover:text-gray-200 transition-colors cursor-pointer">
+        <button
+          onClick={() => {
+            onSelectSection('dashboard');
+            onChangePerspective?.(
+              rolePerspective === 'REGIONAL_MT_RT' ? 'REGIONAL_MT_RT' : 'REGIONAL_RGM'
+            );
+          }}
+          className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors cursor-pointer ${
+            isRegionalActive
+              ? 'bg-[#282A32] text-white font-medium'
+              : 'text-[#9CA3AF] hover:bg-[#282A32] hover:text-gray-200'
+          }`}
+        >
           <Building2 className="w-4 h-4" />
           <span>区域数据</span>
-        </div>
+        </button>
 
         {/* 4. 积分管理 */}
         <div className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-[#9CA3AF] hover:bg-[#282A32] hover:text-gray-200 transition-colors cursor-pointer">

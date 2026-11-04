@@ -39,6 +39,9 @@ import { DigitalHumanView } from './components/sparring/DigitalHumanView';
 import { ScenarioScriptView } from './components/sparring/ScenarioScriptView';
 import { CrossSellingView } from './components/product/CrossSellingView';
 import { TagDimensionManageModal } from './components/sparring/TagDimensionManageModal';
+import { HeroProductListView } from './components/hero/HeroProductListView';
+import { HeroProductDetailView } from './components/hero/HeroProductDetailView';
+import { HeroProductItem, HeroProductFilterState } from './types/heroProduct';
 import { CheckCircle2, Sparkles, X } from 'lucide-react';
 
 export default function App() {
@@ -56,6 +59,15 @@ export default function App() {
   // Navigation
   const [currentSection, setCurrentSection] = useState<NavSection>('products');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+
+  // Hero Product Board State
+  const [heroProductFilter, setHeroProductFilter] = useState<HeroProductFilterState>({
+    month: '2026-10',
+    brand: 'ALL',
+    region: 'ALL',
+    searchKeyword: '',
+  });
+  const [selectedHeroProduct, setSelectedHeroProduct] = useState<HeroProductItem | null>(null);
 
   // Perspective (HQ vs Regional)
   const [rolePerspective, setRolePerspective] = useState<UserRolePerspective>('HQ');
@@ -107,14 +119,23 @@ export default function App() {
 
   // Breadcrumbs calculation
   const getBreadcrumbs = () => {
-    const list: string[] = ['全国数据'];
+    const isHQ = rolePerspective === 'HQ';
+    const isMTRT = rolePerspective === 'REGIONAL_MT_RT';
+    const list: string[] = [isHQ ? '全国数据' : '区域数据'];
+
     if (currentSection === 'products') {
       list.push('产品管理');
       if (selectedProduct) {
         list.push(selectedProduct.name);
       }
     } else if (currentSection === 'dashboard') {
-      list.push('全国培训概览');
+      if (isHQ) {
+        list.push('全国培训概览');
+      } else if (isMTRT) {
+        list.push('Jakarta 区域概览 (MT/RT 专柜BA)');
+      } else {
+        list.push('Jakarta 区域概览 (RGM 全盘)');
+      }
     } else if (currentSection === 'ai-recommendations') {
       list.push('产品管理');
       list.push('AI 智能任务推荐');
@@ -131,6 +152,11 @@ export default function App() {
     } else if (currentSection === 'digital-humans') {
       list.push('AI陪练管理');
       list.push('数字人顾客');
+    } else if (currentSection === 'hero-products') {
+      list.push('大单品看板');
+      if (selectedHeroProduct) {
+        list.push(selectedHeroProduct.name);
+      }
     } else if (currentSection === 'scenario-scripts') {
       list.push('AI陪练管理');
       list.push('场景剧本');
@@ -318,12 +344,17 @@ export default function App() {
           if (sec !== 'products') {
             setSelectedProduct(null);
           }
+          if (sec !== 'hero-products') {
+            setSelectedHeroProduct(null);
+          }
         }}
         productCount={products.length}
         combinationCount={productCombinations.length}
         digitalHumanCount={digitalHumans.length}
         scenarioScriptCount={scenarioScripts.length}
         onOpenTagManage={() => setIsTagModalOpen(true)}
+        rolePerspective={rolePerspective}
+        onChangePerspective={(role) => setRolePerspective(role)}
       />
 
       {/* 2. Main Workspace Viewport */}
@@ -334,17 +365,22 @@ export default function App() {
           rolePerspective={rolePerspective}
           onChangePerspective={(role) => {
             setRolePerspective(role);
-            showToast(
-              role === 'HQ'
-                ? '已切换至【总部视角】：可制定全国产品大单品战略与连带拓扑'
-                : '已切换至【Jakarta 区域视角】：可重点针对区域考试薄弱点定向发任务'
-            );
+            if (role === 'HQ') {
+              showToast('已切换至【全国数据 (HQ)】：展示全国BA与主播总数及激活情况');
+            } else if (role === 'REGIONAL_MT_RT') {
+              showToast('已切换至【区域 MT/RT 视角】：专注专柜BA培训对练，隐藏主播指标');
+            } else {
+              showToast('已切换至【区域 RGM 视角】：展示区域BA与主播总数及激活情况');
+            }
           }}
           currentSection={currentSection}
           onSelectSection={(sec) => {
             setCurrentSection(sec);
             if (sec !== 'products') {
               setSelectedProduct(null);
+            }
+            if (sec !== 'hero-products') {
+              setSelectedHeroProduct(null);
             }
           }}
         />
@@ -435,12 +471,38 @@ export default function App() {
             {currentSection === 'dashboard' && (
               <DashboardView
                 products={products}
+                rolePerspective={rolePerspective}
+                onChangePerspective={(role) => setRolePerspective(role)}
                 onNavigateToProducts={() => {
                   setSelectedProduct(null);
                   setCurrentSection('products');
                 }}
                 onNavigateToAI={() => setCurrentSection('ai-recommendations')}
+                onNavigateToHeroProducts={() => {
+                  setSelectedHeroProduct(null);
+                  setCurrentSection('hero-products');
+                }}
               />
+            )}
+
+            {/* View 3.5: Hero Product Dedicated Dashboard (大单品专项看板) */}
+            {currentSection === 'hero-products' && (
+              <>
+                {selectedHeroProduct ? (
+                  <HeroProductDetailView
+                    product={selectedHeroProduct}
+                    filter={heroProductFilter}
+                    onChangeFilter={setHeroProductFilter}
+                    onBack={() => setSelectedHeroProduct(null)}
+                  />
+                ) : (
+                  <HeroProductListView
+                    filter={heroProductFilter}
+                    onChangeFilter={setHeroProductFilter}
+                    onSelectProduct={(p) => setSelectedHeroProduct(p)}
+                  />
+                )}
+              </>
             )}
 
             {/* View 4: Tasks List */}

@@ -19,7 +19,12 @@ import {
 } from 'lucide-react';
 import { NavSection } from './Sidebar';
 
-export type UserRolePerspective = 'HQ' | 'REGIONAL_JAKARTA' | 'REGIONAL_BANDUNG';
+export type UserRolePerspective =
+  | 'HQ' // 可以看到全国数据的人 (全国BA总数、全国已激活BA数；全国主播总数、全国已激活主播数)
+  | 'REGIONAL_RGM' // 区域RGM 可以看到区域总数据的人 (区域BA总数、区域已激活BA数；区域主播总数、区域已激活主播数)
+  | 'REGIONAL_MT_RT' // 区域MT和RT 只管BA不管主播 (区域BA总数、区域已激活BA数)
+  | 'REGIONAL_JAKARTA' // 兼容旧值
+  | 'REGIONAL_BANDUNG'; // 兼容旧值
 
 interface HeaderProps {
   breadcrumbs: string[];
@@ -39,6 +44,10 @@ export const Header: React.FC<HeaderProps> = ({
   onSelectSection,
   onRefresh,
 }) => {
+  const isHQ = rolePerspective === 'HQ';
+  const isRGM = rolePerspective === 'REGIONAL_RGM' || rolePerspective === 'REGIONAL_JAKARTA';
+  const isMTRT = rolePerspective === 'REGIONAL_MT_RT';
+
   return (
     <header className="bg-white border-b border-[#E8E6E1] shrink-0 shadow-[0_1px_2px_rgba(0,0,0,0.03)] z-10 flex flex-col">
       {/* Top Bar: Breadcrumb + Utility Actions */}
@@ -65,32 +74,45 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Right: Actions, Role Switcher, Utilities, Profile */}
         <div className="flex items-center gap-3">
-          {/* Role Perspective Selector (HQ vs Regional) */}
+          {/* Role Perspective Selector: HQ vs Regional RGM vs Regional MT/RT */}
           <div className="flex items-center bg-[#F4F2EE] rounded-lg p-0.5 border border-[#E5E1D8]">
             <button
               onClick={() => onChangePerspective('HQ')}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${
-                rolePerspective === 'HQ'
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${
+                isHQ
                   ? 'bg-white text-[#9E4A2B] shadow-xs font-semibold'
                   : 'text-[#6B7280] hover:text-[#1F2937]'
               }`}
-              title="总部视角：制定产品策略、维护画像卖点、建立连带矩阵、管理角色"
+              title="全国数据：展示全国BA总数、已激活BA数，全国主播总数、已激活主播数"
             >
-              <Building2 className="w-3.5 h-3.5" />
-              <span>总部视角</span>
+              <Globe className="w-3.5 h-3.5" />
+              <span>全国管理者 (HQ)</span>
             </button>
 
             <button
-              onClick={() => onChangePerspective('REGIONAL_JAKARTA')}
-              className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${
-                rolePerspective === 'REGIONAL_JAKARTA'
+              onClick={() => onChangePerspective('REGIONAL_RGM')}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${
+                isRGM
                   ? 'bg-white text-[#9E4A2B] shadow-xs font-semibold'
                   : 'text-[#6B7280] hover:text-[#1F2937]'
               }`}
-              title="区域视角：针对薄弱产品发布任务、参考AI建议定向分发"
+              title="区域RGM：展示区域BA总数、已激活BA数，区域主播总数、已激活主播数"
             >
-              <MapPin className="w-3.5 h-3.5" />
-              <span>Jakarta 区域</span>
+              <Building2 className="w-3.5 h-3.5" />
+              <span>区域 RGM (含主播)</span>
+            </button>
+
+            <button
+              onClick={() => onChangePerspective('REGIONAL_MT_RT')}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${
+                isMTRT
+                  ? 'bg-white text-[#9E4A2B] shadow-xs font-semibold'
+                  : 'text-[#6B7280] hover:text-[#1F2937]'
+              }`}
+              title="区域MT/RT：只管BA不管主播，仅展示区域BA总数、已激活BA数"
+            >
+              <Users className="w-3.5 h-3.5" />
+              <span>区域 MT/RT (仅BA)</span>
             </button>
           </div>
 
