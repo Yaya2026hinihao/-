@@ -42,6 +42,7 @@ import { TagDimensionManageModal } from './components/sparring/TagDimensionManag
 import { HeroProductListView } from './components/hero/HeroProductListView';
 import { HeroProductDetailView } from './components/hero/HeroProductDetailView';
 import { HeroProductItem, HeroProductFilterState } from './types/heroProduct';
+import { InspectionMainView } from './components/inspection/InspectionMainView';
 import { CheckCircle2, Sparkles, X } from 'lucide-react';
 
 export default function App() {
@@ -157,6 +158,8 @@ export default function App() {
       if (selectedHeroProduct) {
         list.push(selectedHeroProduct.name);
       }
+    } else if (currentSection === 'inspection') {
+      list.push('智能巡检工作区');
     } else if (currentSection === 'scenario-scripts') {
       list.push('AI陪练管理');
       list.push('场景剧本');
@@ -503,6 +506,11 @@ export default function App() {
                   />
                 )}
               </>
+            )}
+
+            {/* View 3.8: Inspection View (智能巡检工作区与功能中心) */}
+            {currentSection === 'inspection' && (
+              <InspectionMainView onShowToast={showToast} />
             )}
 
             {/* View 4: Tasks List */}

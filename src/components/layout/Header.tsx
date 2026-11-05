@@ -15,7 +15,8 @@ import {
   BarChart3,
   MessageSquare,
   Users,
-  Package
+  Package,
+  ShieldCheck
 } from 'lucide-react';
 import { NavSection } from './Sidebar';
 
@@ -222,6 +223,19 @@ export const Header: React.FC<HeaderProps> = ({
           >
             <BarChart3 className="w-3.5 h-3.5" />
             <span>全国数据</span>
+          </button>
+
+          {/* Tab: 智能巡检 */}
+          <button
+            onClick={() => onSelectSection && onSelectSection('inspection')}
+            className={`px-3 py-1 rounded text-xs transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
+              currentSection === 'inspection'
+                ? 'bg-[#9E4A2B] text-white font-semibold shadow-2xs'
+                : 'bg-white border border-[#EAE6DD] text-[#4B5563] hover:text-[#111827] hover:bg-gray-50'
+            }`}
+          >
+            <ShieldCheck className="w-3.5 h-3.5" />
+            <span>智能巡检</span>
           </button>
 
           {/* Tab: 练习任务 */}

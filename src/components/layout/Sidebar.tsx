@@ -28,6 +28,7 @@ export type NavSection =
   | 'products'
   | 'dashboard'
   | 'hero-products'
+  | 'inspection'
   | 'tasks'
   | 'ai-recommendations'
   | 'cross-selling'
@@ -111,7 +112,29 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <span>运行概览</span>
         </div>
 
-        {/* 3. 区域数据 */}
+        {/* 3. 智能巡检 (AI 巡检工作区与功能中心) */}
+        <button
+          onClick={() => onSelectSection('inspection')}
+          className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-all cursor-pointer ${
+            currentSection === 'inspection'
+              ? 'bg-[#9E4A2B] text-white font-semibold shadow-xs'
+              : 'text-[#9CA3AF] hover:bg-[#282A32] hover:text-gray-200'
+          }`}
+        >
+          <div className="flex items-center gap-3">
+            <ShieldCheck className={`w-4 h-4 ${currentSection === 'inspection' ? 'text-white' : 'text-[#E26A3B]'}`} />
+            <span>智能巡检</span>
+          </div>
+          <span className={`text-[10px] px-1.5 py-0.2 rounded font-medium border ${
+            currentSection === 'inspection'
+              ? 'bg-white/20 text-white border-white/30'
+              : 'bg-[#D97706]/15 text-[#F59E0B] border-[#D97706]/30'
+          }`}>
+            AI能力
+          </span>
+        </button>
+
+        {/* 4. 区域数据 */}
         <button
           onClick={() => {
             onSelectSection('dashboard');
