@@ -4,7 +4,11 @@ import {
   HeroBAPerson,
   MonthKey,
   BrandKey,
+  MatrixBrandKey,
   RegionKey,
+  RgmRegionKey,
+  ParentCityKey,
+  HeroRgmRegion,
   HeroProductFilterState,
   HeroTrainingCycleComparison,
   HeroTrainingCycleStatus
@@ -15,8 +19,36 @@ import dazzleSettingSprayImg from '../assets/images/dazzle_setting_spray_1790622
 import youCushionCompactImg from '../assets/images/you_cushion_compact_1790622627959.jpg';
 import glamfixPowderPuffImg from '../assets/images/glamfix_powder_puff_1790622638055.jpg';
 
+// 14 个 RGM 区域映射配置（汇总覆盖全国全部有效 BA 与大区销售份额）
+export const HERO_RGM_REGIONS: HeroRgmRegion[] = [
+  { rgmId: 'rgm-1',  rgmName: 'Andi Wijaya',     regionName: 'Jakarta Central',      parentCity: 'Jakarta',  shareInParentCity: 0.28 },
+  { rgmId: 'rgm-2',  rgmName: 'Siti Rahma',      regionName: 'Jakarta South',        parentCity: 'Jakarta',  shareInParentCity: 0.26 },
+  { rgmId: 'rgm-3',  rgmName: 'Kevin Pratama',   regionName: 'Jakarta West',         parentCity: 'Jakarta',  shareInParentCity: 0.25 },
+  { rgmId: 'rgm-4',  rgmName: 'Rina Kusuma',     regionName: 'Jakarta North-Bekasi', parentCity: 'Jakarta',  shareInParentCity: 0.21 },
+  { rgmId: 'rgm-5',  rgmName: 'Ahmad Fauzi',     regionName: 'Bandung Kota',         parentCity: 'Bandung',  shareInParentCity: 0.37 },
+  { rgmId: 'rgm-6',  rgmName: 'Dewi Sartika',    regionName: 'Bogor-Depok',          parentCity: 'Bandung',  shareInParentCity: 0.33 },
+  { rgmId: 'rgm-7',  rgmName: 'Reza Saputra',    regionName: 'Cirebon-Tasik',        parentCity: 'Bandung',  shareInParentCity: 0.30 },
+  { rgmId: 'rgm-8',  rgmName: 'Budi Santoso',    regionName: 'Surabaya Metro',       parentCity: 'Surabaya', shareInParentCity: 0.38 },
+  { rgmId: 'rgm-9',  rgmName: 'Melisa Chen',     regionName: 'Malang-Sidoarjo',      parentCity: 'Surabaya', shareInParentCity: 0.33 },
+  { rgmId: 'rgm-10', rgmName: 'Hendra Gunawan',  regionName: 'Bali-Nusa Tenggara',   parentCity: 'Surabaya', shareInParentCity: 0.29 },
+  { rgmId: 'rgm-11', rgmName: 'Rizal Hakim',     regionName: 'Medan-Aceh',           parentCity: 'Medan',    shareInParentCity: 0.53 },
+  { rgmId: 'rgm-12', rgmName: 'Putri Nasution',  regionName: 'Riau-Batam',           parentCity: 'Medan',    shareInParentCity: 0.47 },
+  { rgmId: 'rgm-13', rgmName: 'Dian Hidayah',    regionName: 'Semarang-Pantura',     parentCity: 'Semarang', shareInParentCity: 0.54 },
+  { rgmId: 'rgm-14', rgmName: 'Tari Utami',      regionName: 'Yogyakarta-Solo',      parentCity: 'Semarang', shareInParentCity: 0.46 },
+];
+
+export const HERO_MATRIX_BRANDS: { key: MatrixBrandKey; label: string }[] = [
+  { key: 'YOU_MAKEUP', label: 'YOU彩妆' },
+  { key: 'YOU_SKINCARE', label: 'YOU护肤' },
+  { key: 'BNB', label: 'BNB' },
+  { key: 'DM', label: 'DM' },
+  { key: 'LVJ', label: 'LVJ' },
+  { key: 'FML', label: 'FML' },
+];
+
 export const HERO_MONTH_OPTIONS: { key: MonthKey; label: string; isPartial?: boolean }[] = [
-  { key: '2026-10', label: '2026年10月 (当月)', isPartial: true },
+  { key: '2026-11', label: '2026年11月 (本月)', isPartial: true },
+  { key: '2026-10', label: '2026年10月' },
   { key: '2026-09', label: '2026年09月' },
   { key: '2026-08', label: '2026年08月' },
   { key: '2026-07', label: '2026年07月' },
@@ -24,22 +56,21 @@ export const HERO_MONTH_OPTIONS: { key: MonthKey; label: string; isPartial?: boo
 ];
 
 export const HERO_BRAND_OPTIONS: { key: BrandKey; label: string }[] = [
-  { key: 'ALL', label: '全部品牌 (Semua Brand)' },
-  { key: 'YOU', label: 'Y.O.U Beauty' },
-  { key: 'BNB', label: 'barenbliss (BNB)' },
-  { key: 'DM', label: 'DAZZLE ME' },
-  { key: 'LVJ', label: 'lavojoy' },
-  { key: 'GF', label: 'GLAMFIX' },
-  { key: 'FML', label: 'FORMULOGIC' },
+  { key: 'ALL', label: '全部品牌' },
+  { key: 'YOU_MAKEUP', label: 'YOU彩妆' },
+  { key: 'YOU_SKINCARE', label: 'YOU护肤' },
+  { key: 'BNB', label: 'BNB' },
+  { key: 'DM', label: 'DM' },
+  { key: 'LVJ', label: 'LVJ' },
+  { key: 'FML', label: 'FML' },
 ];
 
 export const HERO_REGION_OPTIONS: { key: RegionKey; label: string }[] = [
-  { key: 'ALL', label: '全国大区 (Nasional - HQ)' },
-  { key: 'Jakarta', label: 'Jakarta 大区' },
-  { key: 'Bandung', label: 'Bandung 大区' },
-  { key: 'Surabaya', label: 'Surabaya 大区' },
-  { key: 'Medan', label: 'Medan 大区' },
-  { key: 'Semarang', label: 'Semarang 大区' },
+  { key: 'ALL', label: '全部大区' },
+  ...HERO_RGM_REGIONS.map(r => ({
+    key: r.rgmId as RegionKey,
+    label: `${r.regionName} (${r.rgmName})`,
+  })),
 ];
 
 // ================= 1. 模拟培训任务（重点业务逻辑：支持一个任务关联多个大单品） =================
@@ -588,9 +619,19 @@ export const MOCK_HERO_PRODUCTS: HeroProductItem[] = Array.from({ length: 44 }, 
   
   // 各月份销量（带有自然的季节增长与波动趋势）
   const monthlySales: HeroProductItem['monthlySales'] = {
+    '2026-11': {
+      sellOutUnits: Math.round(baseMonthly * 0.88),
+      isPartialMonth: true,
+      byRegion: {
+        Jakarta: Math.round(baseMonthly * 0.88 * 0.38),
+        Bandung: Math.round(baseMonthly * 0.88 * 0.28),
+        Surabaya: Math.round(baseMonthly * 0.88 * 0.16),
+        Medan: Math.round(baseMonthly * 0.88 * 0.10),
+        Semarang: Math.round(baseMonthly * 0.88 * 0.08)
+      }
+    },
     '2026-10': {
       sellOutUnits: Math.round(baseMonthly * 0.94),
-      isPartialMonth: true,
       byRegion: {
         Jakarta: Math.round(baseMonthly * 0.94 * 0.38),
         Bandung: Math.round(baseMonthly * 0.94 * 0.28),
@@ -664,10 +705,27 @@ export const MOCK_HERO_PRODUCTS: HeroProductItem[] = Array.from({ length: 44 }, 
   };
 });
 
-// ================= 3. 模拟全量 BA 人员（400人基础样本库，精准匹配首页400人总数大盘） =================
-const REGIONS: ('Jakarta' | 'Bandung' | 'Surabaya' | 'Medan' | 'Semarang')[] = [
+// ================= 3. 模拟全量 BA 人员（400人基础样本库，精准匹配首页400人总数大盘及14个RGM分区） =================
+const REGIONS: ParentCityKey[] = [
   'Jakarta', 'Jakarta', 'Bandung', 'Bandung', 'Surabaya', 'Medan', 'Semarang'
 ];
+
+// 各父城市下每个 BA 确定性映射到下辖 RGM（确保 14 个 RGM 都有稳定有效 BA 池且总和严格等于 400）
+const CITY_RGM_POOLS: Record<ParentCityKey, RgmRegionKey[]> = {
+  Jakarta: ['rgm-1', 'rgm-2', 'rgm-3', 'rgm-4'],
+  Bandung: ['rgm-5', 'rgm-6', 'rgm-7'],
+  Surabaya: ['rgm-8', 'rgm-9', 'rgm-10'],
+  Medan: ['rgm-11', 'rgm-12'],
+  Semarang: ['rgm-13', 'rgm-14'],
+};
+
+const cityOccurrenceCounters: Record<ParentCityKey, number> = {
+  Jakarta: 0,
+  Bandung: 0,
+  Surabaya: 0,
+  Medan: 0,
+  Semarang: 0,
+};
 
 const INDO_FIRST_NAMES = [
   'Siti', 'Dewi', 'Ayu', 'Rina', 'Nurul', 'Putri', 'Intan', 'Melati', 'Ratna', 'Wulan',
@@ -680,6 +738,9 @@ const INDO_LAST_NAMES = [
 
 export const MOCK_HERO_BA_LIST: HeroBAPerson[] = Array.from({ length: 400 }, (_, i) => {
   const region = REGIONS[i % REGIONS.length];
+  const cityPool = CITY_RGM_POOLS[region];
+  const cityOccur = cityOccurrenceCounters[region]++;
+  const rgmId = cityPool[cityOccur % cityPool.length];
   const firstName = INDO_FIRST_NAMES[i % INDO_FIRST_NAMES.length];
   const lastName = INDO_LAST_NAMES[(i * 3 + 7) % INDO_LAST_NAMES.length];
   const empId = `HEBE-BA-${String(1001 + i).padStart(4, '0')}`;
@@ -794,13 +855,14 @@ export const MOCK_HERO_BA_LIST: HeroBAPerson[] = Array.from({ length: 400 }, (_,
     name: `${firstName} ${lastName}`,
     employeeId: empId,
     region,
+    rgmId,
     storeName,
     participatedProductIds,
     completedTaskIds: Array.from(new Set(completedTaskIds)),
     assignedTaskIdsByProduct,
     practiceSubmitsByProduct,
     taskProgressDetails,
-    lastActiveDate: `2026-10-${String((i % 28) + 1).padStart(2, '0')}`
+    lastActiveDate: `2026-11-${String((i % 22) + 1).padStart(2, '0')}`
   };
 });
 
@@ -843,9 +905,15 @@ export function getHeroBannerStatistics() {
  */
 export function getFilteredHeroProducts(filter: HeroProductFilterState) {
   return MOCK_HERO_PRODUCTS.filter(prod => {
-    // 品牌筛选
-    if (filter.brand !== 'ALL' && prod.brand !== filter.brand) {
-      return false;
+    // 品牌筛选（支持 YOU彩妆 / YOU护肤 拆分及单品牌筛选）
+    if (filter.brand !== 'ALL') {
+      if (filter.brand === 'YOU_MAKEUP') {
+        if (!(prod.brand === 'YOU' && prod.category === 'MAKEUP')) return false;
+      } else if (filter.brand === 'YOU_SKINCARE') {
+        if (!(prod.brand === 'YOU' && prod.category === 'SKINCARE')) return false;
+      } else if (prod.brand !== filter.brand) {
+        return false;
+      }
     }
     // 搜索词
     if (filter.searchKeyword.trim()) {
@@ -857,6 +925,35 @@ export function getFilteredHeroProducts(filter: HeroProductFilterState) {
     }
     return true;
   });
+}
+
+/**
+ * 辅助：根据筛选大区（全国 / 14个RGM / 父级城市）过滤 BA 列表
+ */
+export function getTargetBAsByRegion(region: RegionKey): HeroBAPerson[] {
+  if (region === 'ALL') return MOCK_HERO_BA_LIST;
+  if (region.startsWith('rgm-')) {
+    return MOCK_HERO_BA_LIST.filter(ba => ba.rgmId === region);
+  }
+  return MOCK_HERO_BA_LIST.filter(ba => ba.region === region);
+}
+
+/**
+ * 辅助：获取大区对应的销量取值（支持 RGM 按在所属区域占比折算）
+ */
+export function getRegionalSellOutUnits(
+  monthData: HeroProductItem['monthlySales'][MonthKey] | undefined,
+  region: RegionKey
+): number {
+  if (!monthData) return 0;
+  if (region === 'ALL') return monthData.sellOutUnits || 0;
+  if (region.startsWith('rgm-')) {
+    const rgm = HERO_RGM_REGIONS.find(r => r.rgmId === region);
+    if (!rgm) return 0;
+    const cityUnits = monthData.byRegion[rgm.parentCity] || 0;
+    return Math.round(cityUnits * rgm.shareInParentCity);
+  }
+  return monthData.byRegion[region] || 0;
 }
 
 /**
@@ -884,9 +981,7 @@ export function computeHeroProductRowStats(product: HeroProductItem, filter: Her
   const examTaskIds = new Set(examTasks.map(t => t.id));
 
   // 2. 筛选范围内的 BA
-  const targetBAs = filter.region === 'ALL'
-    ? MOCK_HERO_BA_LIST
-    : MOCK_HERO_BA_LIST.filter(ba => ba.region === filter.region);
+  const targetBAs = getTargetBAsByRegion(filter.region);
 
   const totalRequiredBAs = targetBAs.length; // 应参与人数
 
@@ -992,28 +1087,44 @@ export function computeHeroProductRowStats(product: HeroProductItem, filter: Her
     ? Number(((passedExamParticipants / totalExamParticipants) * 100).toFixed(1))
     : 0;
 
-  // 5. 实际销量 (SELL OUT) 按选择月份及大区计算
-  const monthData = product.monthlySales[filter.month];
-  let currentSellOut = 0;
-  if (filter.region === 'ALL') {
-    currentSellOut = monthData?.sellOutUnits || 0;
-  } else {
-    currentSellOut = monthData?.byRegion[filter.region] || 0;
+  // 5. 实际销量 (SELL OUT) 与培训人次按统计周期及大区计算
+  const activeMonth: MonthKey = filter.periodType === 'THIS_MONTH' ? '2026-11' : filter.month;
+  const monthData = product.monthlySales[activeMonth];
+  const baseMonthSellOut = getRegionalSellOutUnits(monthData, filter.region);
+
+  // 根据统计周期（本周 / 本月 / 自定义时间范围）动态折算销量及活跃人次
+  let periodScale = 1;
+  if (filter.periodType === 'THIS_WEEK') {
+    periodScale = 7 / 30;
+  } else if (filter.periodType === 'CUSTOM' && filter.customStartDate && filter.customEndDate) {
+    const startMs = parseUTCDate(filter.customStartDate).getTime();
+    const endMs = parseUTCDate(filter.customEndDate).getTime();
+    const spanDays = Math.max(1, Math.round((endMs - startMs) / (24 * 60 * 60 * 1000)) + 1);
+    // 若选择范围超出可用数据截止日 (2026-11-29) 或早于起始日 (2026-06-01)，销量与培训参与计 0
+    if (filter.customStartDate > '2026-11-29' || filter.customEndDate < '2026-06-01') {
+      periodScale = 0;
+    } else {
+      periodScale = Math.min(2.5, spanDays / 30);
+    }
   }
 
+  const currentSellOut = Math.round(baseMonthSellOut * periodScale);
+  const scaledStudyPersonTimes = Math.round(studyPersonTimes * Math.min(1, Math.max(periodScale === 0 ? 0 : 0.25, periodScale)));
+  const scaledPracticePersonTimes = Math.round(practicePersonTimes * Math.min(1, Math.max(periodScale === 0 ? 0 : 0.25, periodScale)));
+  const scaledExamPersonTimes = Math.round(examPersonTimes * Math.min(1, Math.max(periodScale === 0 ? 0 : 0.25, periodScale)));
+  const scaledTrainingPersonTimes = scaledStudyPersonTimes + scaledPracticePersonTimes + scaledExamPersonTimes;
+
   // 环比上一自然月销量
-  const monthsSequence: MonthKey[] = ['2026-06', '2026-07', '2026-08', '2026-09', '2026-10'];
-  const curIdx = monthsSequence.indexOf(filter.month);
+  const monthsSequence: MonthKey[] = ['2026-06', '2026-07', '2026-08', '2026-09', '2026-10', '2026-11'];
+  const curIdx = monthsSequence.indexOf(activeMonth);
   let momGrowth: number | null = null;
-  if (curIdx > 0) {
+  if (periodScale > 0 && curIdx > 0) {
     const prevMonth = monthsSequence[curIdx - 1];
     const prevMonthData = product.monthlySales[prevMonth];
-    const prevSellOut = filter.region === 'ALL'
-      ? (prevMonthData?.sellOutUnits || 0)
-      : (prevMonthData?.byRegion[filter.region] || 0);
+    const prevSellOut = getRegionalSellOutUnits(prevMonthData, filter.region);
 
     if (prevSellOut > 0) {
-      const baseComparable = monthData?.isPartialMonth ? currentSellOut * 1.15 : currentSellOut;
+      const baseComparable = monthData?.isPartialMonth ? baseMonthSellOut * 1.15 : baseMonthSellOut;
       momGrowth = Number((((baseComparable - prevSellOut) / prevSellOut) * 100).toFixed(1));
     }
   }
@@ -1023,11 +1134,11 @@ export function computeHeroProductRowStats(product: HeroProductItem, filter: Her
     practiceCount,
     examCount,
     totalTasks,
-    totalPracticeSubmits: practicePersonTimes,
-    studyPersonTimes,
-    practicePersonTimes,
-    examPersonTimes,
-    trainingPersonTimes: totalTrainingPersonTimes,
+    totalPracticeSubmits: scaledPracticePersonTimes,
+    studyPersonTimes: scaledStudyPersonTimes,
+    practicePersonTimes: scaledPracticePersonTimes,
+    examPersonTimes: scaledExamPersonTimes,
+    trainingPersonTimes: scaledTrainingPersonTimes,
     totalRequiredBAs,
     participatedCount,
     unparticipatedCount,
@@ -1510,11 +1621,22 @@ function sumWindowSalesStrict(
     if (region === 'ALL') {
       total += REGION_KEYS.reduce((acc, rk) => acc + dayEntry[rk], 0);
     } else {
-      const val = dayEntry[region];
-      if (typeof val !== 'number') {
+      const rgm = HERO_RGM_REGIONS.find(r => r.rgmId === region);
+      if (rgm) {
+        const val = dayEntry[rgm.parentCity];
+        if (typeof val !== 'number') {
+          return { sum: null, isComplete: false };
+        }
+        total += Math.round(val * rgm.shareInParentCity);
+      } else if (REGION_KEYS.includes(region as ParentCityKey)) {
+        const val = dayEntry[region as ParentCityKey];
+        if (typeof val !== 'number') {
+          return { sum: null, isComplete: false };
+        }
+        total += val;
+      } else {
         return { sum: null, isComplete: false };
       }
-      total += val;
     }
   }
   return { sum: total, isComplete: true };

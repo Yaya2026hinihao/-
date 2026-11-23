@@ -30,18 +30,17 @@ import {
   HeroTask,
   HeroBAPerson,
   MonthKey,
-  BrandKey,
   RegionKey,
   HeroTrainingCycleComparison
 } from '../../types/heroProduct';
 import {
   MOCK_HERO_TASKS,
-  MOCK_HERO_BA_LIST,
   computeHeroProductRowStats,
   getHeroProductTrendIntervals,
   getHeroProductTrainingCycles,
+  getTargetBAsByRegion,
+  getRegionalSellOutUnits,
   HERO_MONTH_OPTIONS,
-  HERO_BRAND_OPTIONS,
   HERO_REGION_OPTIONS
 } from '../../data/mockHeroProducts';
 
@@ -125,9 +124,7 @@ export const HeroProductDetailView: React.FC<HeroProductDetailViewProps> = ({
 
   // 当前大区筛选下的全量 BA 列表
   const targetBAsInScope = useMemo(() => {
-    return filter.region === 'ALL'
-      ? MOCK_HERO_BA_LIST
-      : MOCK_HERO_BA_LIST.filter(ba => ba.region === filter.region);
+    return getTargetBAsByRegion(filter.region);
   }, [filter.region]);
 
   // BA 人员明细及统计（按搜索与状态筛选）
@@ -159,18 +156,16 @@ export const HeroProductDetailView: React.FC<HeroProductDetailViewProps> = ({
     return filteredBAList.slice(start, start + BA_PAGE_SIZE);
   }, [filteredBAList, isBaListExpanded, baCurrentPage]);
 
-  // 销售趋势月度数据 (近5个月)
+  // 销售趋势月度数据 (近6个月)
   const salesTrendList = useMemo(() => {
-    const months: MonthKey[] = ['2026-06', '2026-07', '2026-08', '2026-09', '2026-10'];
+    const months: MonthKey[] = ['2026-06', '2026-07', '2026-08', '2026-09', '2026-10', '2026-11'];
     return months.map(m => {
       const data = product.monthlySales[m];
-      const units = filter.region === 'ALL'
-        ? (data?.sellOutUnits || 0)
-        : (data?.byRegion[filter.region] || 0);
+      const units = getRegionalSellOutUnits(data, filter.region);
 
       return {
         month: m,
-        label: m === '2026-10' ? '10月 (当月)' : `${parseInt(m.split('-')[1])}月`,
+        label: m === '2026-11' ? '11月 (本月)' : `${parseInt(m.split('-')[1])}月`,
         units,
         isCurrentSelected: m === filter.month,
         isPartial: data?.isPartialMonth || false,
@@ -251,7 +246,14 @@ export const HeroProductDetailView: React.FC<HeroProductDetailViewProps> = ({
               <Calendar className="w-3.5 h-3.5 text-[#9E4A2B]" />
               <select
                 value={filter.month}
-                onChange={(e) => onChangeFilter({ ...filter, month: e.target.value as MonthKey })}
+                onChange={(e) => {
+                  const nextMonth = e.target.value as MonthKey;
+                  onChangeFilter({
+                    ...filter,
+                    periodType: nextMonth === '2026-11' ? 'THIS_MONTH' : 'MONTH',
+                    month: nextMonth,
+                  });
+                }}
                 className="bg-white border border-[#D6D0C4] rounded-lg px-2.5 py-1 text-xs font-medium text-[#111827] focus:outline-hidden focus:ring-1 focus:ring-[#9E4A2B]"
               >
                 {HERO_MONTH_OPTIONS.map((m) => (

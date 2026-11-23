@@ -61,9 +61,12 @@ export default function App() {
   const [currentSection, setCurrentSection] = useState<NavSection>('products');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
 
-  // Hero Product Board State
+  // Hero Product Board State (默认：本月、全部品牌、全部大区)
   const [heroProductFilter, setHeroProductFilter] = useState<HeroProductFilterState>({
-    month: '2026-10',
+    periodType: 'THIS_MONTH',
+    month: '2026-11',
+    customStartDate: '2026-11-01',
+    customEndDate: '2026-11-15',
     brand: 'ALL',
     region: 'ALL',
     searchKeyword: '',

@@ -1,10 +1,40 @@
-export type BrandKey = 'ALL' | 'YOU' | 'BNB' | 'DM' | 'LVJ' | 'GF' | 'FML';
+export type MatrixBrandKey = 'YOU_MAKEUP' | 'YOU_SKINCARE' | 'BNB' | 'DM' | 'LVJ' | 'FML';
 
-export type RegionKey = 'ALL' | 'Jakarta' | 'Bandung' | 'Surabaya' | 'Medan' | 'Semarang';
+export type BrandKey = 'ALL' | MatrixBrandKey | 'YOU' | 'GF';
 
-export type MonthKey = '2026-10' | '2026-09' | '2026-08' | '2026-07' | '2026-06';
+export type ParentCityKey = 'Jakarta' | 'Bandung' | 'Surabaya' | 'Medan' | 'Semarang';
+
+export type RgmRegionKey =
+  | 'rgm-1'
+  | 'rgm-2'
+  | 'rgm-3'
+  | 'rgm-4'
+  | 'rgm-5'
+  | 'rgm-6'
+  | 'rgm-7'
+  | 'rgm-8'
+  | 'rgm-9'
+  | 'rgm-10'
+  | 'rgm-11'
+  | 'rgm-12'
+  | 'rgm-13'
+  | 'rgm-14';
+
+export type RegionKey = 'ALL' | RgmRegionKey | ParentCityKey;
+
+export type MonthKey = '2026-11' | '2026-10' | '2026-09' | '2026-08' | '2026-07' | '2026-06';
+
+export type HeroPeriodType = 'THIS_MONTH' | 'THIS_WEEK' | 'CUSTOM' | 'MONTH';
 
 export type TaskType = 'study' | 'practice' | 'exam';
+
+export interface HeroRgmRegion {
+  rgmId: RgmRegionKey;
+  rgmName: string;
+  regionName: string;
+  parentCity: ParentCityKey;
+  shareInParentCity: number;
+}
 
 export interface HeroTask {
   id: string;
@@ -35,7 +65,8 @@ export interface HeroBAPerson {
   id: string;
   name: string;
   employeeId: string;
-  region: 'Jakarta' | 'Bandung' | 'Surabaya' | 'Medan' | 'Semarang';
+  region: ParentCityKey;
+  rgmId: RgmRegionKey;
   storeName: string;
   // 参与的产品ID列表
   participatedProductIds: string[];
@@ -86,7 +117,10 @@ export interface HeroProductItem {
 }
 
 export interface HeroProductFilterState {
+  periodType: HeroPeriodType;
   month: MonthKey;
+  customStartDate: string;
+  customEndDate: string;
   brand: BrandKey;
   region: RegionKey;
   searchKeyword: string;
@@ -129,4 +163,54 @@ export interface HeroTrainingCycleComparison {
   postSales: number | null;    // 后7天完整销量 (不完整则为 null，不作 0)
   changeRate: number | null;   // 销量变化率 (%)
 }
+
+// ================= 全国区域培训与销售表现矩阵类型 =================
+
+export type HeatmapTier = 'EXCELLENT' | 'GOOD' | 'FAIR' | 'WEAK' | 'NONE';
+
+export type MetricChangeDirection = 'UP' | 'DOWN' | 'FLAT' | 'NONE';
+
+export interface RegionalMetricCellValue {
+  value: number | null;      // 数值（缺失则为 null，不作 0）
+  rank: number | null;       // 同品牌下在14个RGM中的独立排名 (#1, #2...)
+  delta: number | null;      // 覆盖率/完成率为百分点(pp)，人均销量为相对百分比(%)
+  direction: MetricChangeDirection;
+  tier: HeatmapTier;
+}
+
+export interface RegionalBrandMatrixCell {
+  rgmId: RgmRegionKey;
+  brandKey: MatrixBrandKey;
+  hasData: boolean;
+  coverage: RegionalMetricCellValue;
+  completion: RegionalMetricCellValue;
+  perCapitaSales: RegionalMetricCellValue;
+}
+
+export interface RegionalBrandMatrixColumn {
+  brandKey: MatrixBrandKey;
+  brandLabel: string;
+  nationalPerCapitaSales: number | null;
+  nationalPerCapitaSalesDelta: number | null;
+  nationalPerCapitaSalesDirection: MetricChangeDirection;
+  nationalSellOutUnits: number | null;
+  nationalEffectiveBACount: number;
+}
+
+export interface RegionalBrandMatrixRow {
+  rgm: HeroRgmRegion;
+  effectiveBACount: number;
+  cells: Record<MatrixBrandKey, RegionalBrandMatrixCell>;
+}
+
+export interface RegionalBrandMatrixResponse {
+  updatedAt: string;
+  currentStartDate: string;
+  currentEndDate: string;
+  previousStartDate: string;
+  previousEndDate: string;
+  columns: RegionalBrandMatrixColumn[];
+  rows: RegionalBrandMatrixRow[];
+}
+
 

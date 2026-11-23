@@ -26,13 +26,14 @@ import {
   RegionKey
 } from '../../types/heroProduct';
 import {
-  MOCK_HERO_PRODUCTS,
+  HERO_RGM_REGIONS,
   HERO_MONTH_OPTIONS,
   HERO_BRAND_OPTIONS,
   HERO_REGION_OPTIONS,
   getFilteredHeroProducts,
   computeHeroProductRowStats
 } from '../../data/mockHeroProducts';
+import { RegionalBrandMatrix } from './RegionalBrandMatrix';
 
 interface HeroProductListViewProps {
   filter: HeroProductFilterState;
@@ -114,7 +115,7 @@ export const HeroProductListView: React.FC<HeroProductListViewProps> = ({
           </div>
           <div className="h-7 w-px bg-[#E5E1D8]" />
           <div className="text-right">
-            <div className="text-[10px] text-[#6B7280] font-medium">当前月份实际 SELL OUT</div>
+            <div className="text-[10px] text-[#6B7280] font-medium">当前周期实际 SELL OUT</div>
             <div className="text-sm font-bold font-mono text-[#059669]">
               {dynamicOverview.totalSellOut.toLocaleString()} <span className="text-[11px] font-normal text-[#6B7280]">件</span>
             </div>
@@ -122,28 +123,89 @@ export const HeroProductListView: React.FC<HeroProductListViewProps> = ({
         </div>
       </div>
 
-      {/* 2. Top Filter Bar (三个核心筛选条件：月份、品牌、大区 + 关键字搜索) */}
+      {/* 2. Top Filter Bar (复用唯一筛选区：统计周期[本周/本月/自定义]、品牌、大区 + 关键字搜索) */}
       <div className="bg-white rounded-2xl border border-[#E8E6E1] p-4 shadow-2xs">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
           <div className="flex flex-wrap items-center gap-3">
-            {/* 筛选条件 1: 月份 */}
-            <div className="flex items-center gap-2 bg-[#FAF8F5] px-3 py-1.5 rounded-xl border border-[#EFECE5]">
+            {/* 筛选条件 1: 月份 / 统计周期 */}
+            <div className="flex flex-wrap items-center gap-2 bg-[#FAF8F5] px-3 py-1.5 rounded-xl border border-[#EFECE5]">
               <Calendar className="w-4 h-4 text-[#9E4A2B]" />
-              <span className="text-xs font-semibold text-[#6B7280]">月份:</span>
+              <span className="text-xs font-semibold text-[#6B7280]">周期:</span>
               <select
-                value={filter.month}
+                value={
+                  filter.periodType === 'MONTH'
+                    ? `MONTH:${filter.month}`
+                    : filter.periodType
+                }
                 onChange={(e) => {
-                  onChangeFilter({ ...filter, month: e.target.value as MonthKey });
+                  const val = e.target.value;
+                  if (val === 'THIS_MONTH') {
+                    onChangeFilter({ ...filter, periodType: 'THIS_MONTH', month: '2026-11' });
+                  } else if (val === 'THIS_WEEK') {
+                    onChangeFilter({ ...filter, periodType: 'THIS_WEEK', month: '2026-11' });
+                  } else if (val === 'CUSTOM') {
+                    onChangeFilter({ ...filter, periodType: 'CUSTOM' });
+                  } else if (val.startsWith('MONTH:')) {
+                    const mKey = val.replace('MONTH:', '') as MonthKey;
+                    onChangeFilter({ ...filter, periodType: 'MONTH', month: mKey });
+                  }
                   setCurrentPage(1);
                 }}
                 className="bg-transparent border-none text-xs font-bold text-[#111827] focus:outline-hidden cursor-pointer"
               >
-                {HERO_MONTH_OPTIONS.map((m) => (
-                  <option key={m.key} value={m.key}>
+                <option value="THIS_MONTH">本月 (2026年11月)</option>
+                <option value="THIS_WEEK">本周 (周一至周日)</option>
+                <option value="CUSTOM">自定义时间范围</option>
+                {HERO_MONTH_OPTIONS.filter(m => m.key !== '2026-11').map((m) => (
+                  <option key={m.key} value={`MONTH:${m.key}`}>
                     {m.label}
                   </option>
                 ))}
               </select>
+
+              {filter.periodType === 'CUSTOM' && (
+                <div className="flex items-center gap-1.5 pl-2 border-l border-[#E5E1D8]">
+                  <input
+                    type="date"
+                    value={filter.customStartDate}
+                    max={filter.customEndDate || undefined}
+                    onChange={(e) => {
+                      const nextStart = e.target.value;
+                      if (!nextStart) return;
+                      onChangeFilter({
+                        ...filter,
+                        customStartDate: nextStart,
+                        customEndDate:
+                          filter.customEndDate && nextStart > filter.customEndDate
+                            ? nextStart
+                            : filter.customEndDate,
+                      });
+                      setCurrentPage(1);
+                    }}
+                    className="bg-white border border-[#D6D0C4] rounded-lg px-2 py-0.5 text-[11px] font-mono text-[#111827] focus:outline-hidden focus:border-[#9E4A2B]"
+                  />
+                  <span className="text-[11px] text-[#9CA3AF]">至</span>
+                  <input
+                    type="date"
+                    value={filter.customEndDate}
+                    min={filter.customStartDate || undefined}
+                    onChange={(e) => {
+                      const nextEnd = e.target.value;
+                      if (!nextEnd) return;
+                      onChangeFilter({
+                        ...filter,
+                        customEndDate: nextEnd,
+                        customStartDate:
+                          filter.customStartDate && nextEnd < filter.customStartDate
+                            ? nextEnd
+                            : filter.customStartDate,
+                      });
+                      setCurrentPage(1);
+                    }}
+                    className="bg-white border border-[#D6D0C4] rounded-lg px-2 py-0.5 text-[11px] font-mono text-[#111827] focus:outline-hidden focus:border-[#9E4A2B]"
+                  />
+                </div>
+              )}
             </div>
 
             {/* 筛选条件 2: 品牌 */}
@@ -166,7 +228,7 @@ export const HeroProductListView: React.FC<HeroProductListViewProps> = ({
               </select>
             </div>
 
-            {/* 筛选条件 3: 大区 (不选择展示全国，选择某大区仅展示该大区) */}
+            {/* 筛选条件 3: 大区 (不选择展示全部14个RGM，选择指定大区仅展示对应RGM) */}
             <div className="flex items-center gap-2 bg-[#FAF8F5] px-3 py-1.5 rounded-xl border border-[#EFECE5]">
               <Building2 className="w-4 h-4 text-[#9E4A2B]" />
               <span className="text-xs font-semibold text-[#6B7280]">大区:</span>
@@ -208,8 +270,12 @@ export const HeroProductListView: React.FC<HeroProductListViewProps> = ({
           <div className="flex items-center gap-1.5">
             <Info className="w-3.5 h-3.5 text-[#9E4A2B]" />
             <span>
-              筛选条件对培训任务数、BA参与及练习提交、自然月 SELL OUT 销售数据联动生效。
-              {filter.region === 'ALL' ? '当前展示全国汇总数据。' : `当前展示 ${filter.region} 大区专属数据。`}
+              筛选条件对全国区域表现矩阵、培训任务、BA覆盖及 SELL OUT 销量联动生效。
+              {filter.region === 'ALL'
+                ? '当前展示全国全部 14 个 RGM 区域数据。'
+                : `当前展示 ${
+                    HERO_RGM_REGIONS.find(r => r.rgmId === filter.region)?.rgmName || filter.region
+                  } 专属区域数据。`}
             </span>
           </div>
           <span className="font-mono text-[#9CA3AF]">
@@ -218,7 +284,10 @@ export const HeroProductListView: React.FC<HeroProductListViewProps> = ({
         </div>
       </div>
 
-      {/* 3. Main Hero Products Table (每个产品一行，字段严格契合用户要求) */}
+      {/* 3. 新增模块：全国区域培训与销售表现（放在筛选区下方、大单品列表上方） */}
+      <RegionalBrandMatrix filter={filter} isId={isId} />
+
+      {/* 4. Main Hero Products Table (每个产品一行，原有字段及逻辑完整保留) */}
       <div className="bg-white rounded-2xl border border-[#E8E6E1] shadow-2xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs min-w-[850px]">
