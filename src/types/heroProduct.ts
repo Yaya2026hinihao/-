@@ -103,3 +103,30 @@ export interface HeroTrendIntervalData {
   totalPersonTimes: number;
   sellOutUnits: number;
 }
+
+// 培训周期及前后7天销量对比状态
+export type HeroTrainingCycleStatus =
+  | 'COMPLETE'               // 周期已结束，且前后7天销量数据完整
+  | 'CYCLE_ONGOING'          // 当前培训周期尚未结束
+  | 'POST_WINDOW_INCOMPLETE' // 培训已结束，但培训后7天尚未完成
+  | 'DATA_INCOMPLETE';       // 前后任一周期销量数据存在缺失
+
+// 单次合并后的自然周培训周期及前后7天销量对比结果
+export interface HeroTrainingCycleComparison {
+  cycleId: string;
+  startDate: string;           // YYYY-MM-DD (自然周周一)
+  endDate: string;             // YYYY-MM-DD (自然周周日)
+  weekCount: number;           // 连续自然周数量
+  preStartDate: string;        // 培训前7天开始日
+  preEndDate: string;          // 培训前7天结束日
+  postStartDate: string;       // 培训后7天开始日
+  postEndDate: string;         // 培训后7天结束日
+  taskIds: string[];           // 合并进该周期的关联任务ID
+  status: HeroTrainingCycleStatus;
+  isLongTermContinuous: boolean;     // 连续3周及以上标记「长期连续培训」
+  hasRetrainingInterference: boolean; // 培训后7天内出现新培训活动标记「存在再次培训干扰」
+  preSales: number | null;     // 前7天完整销量 (不完整则为 null，不作 0)
+  postSales: number | null;    // 后7天完整销量 (不完整则为 null，不作 0)
+  changeRate: number | null;   // 销量变化率 (%)
+}
+

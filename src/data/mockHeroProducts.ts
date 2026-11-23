@@ -5,7 +5,9 @@ import {
   MonthKey,
   BrandKey,
   RegionKey,
-  HeroProductFilterState
+  HeroProductFilterState,
+  HeroTrainingCycleComparison,
+  HeroTrainingCycleStatus
 } from '../types/heroProduct';
 import youSkinTintImg from '../assets/images/you_skin_tint_1790622591492.jpg';
 import bnbLipCreamImg from '../assets/images/bnb_lip_cream_1790622604523.jpg';
@@ -1140,4 +1142,508 @@ export function getHeroProductTrendIntervals(
     };
   });
 }
+
+// ================= 5. 培训周期与培训前后7天销量对比引擎 =================
+// 参考当前业务日（2026-11-23 周一）
+const HERO_CYCLE_REFERENCE_TODAY = '2026-11-23';
+const REGION_KEYS: ('Jakarta' | 'Bandung' | 'Surabaya' | 'Medan' | 'Semarang')[] = [
+  'Jakarta',
+  'Bandung',
+  'Surabaya',
+  'Medan',
+  'Semarang',
+];
+const REGION_WEIGHTS: Record<'Jakarta' | 'Bandung' | 'Surabaya' | 'Medan' | 'Semarang', number> = {
+  Jakarta: 0.38,
+  Bandung: 0.28,
+  Surabaya: 0.16,
+  Medan: 0.10,
+  Semarang: 0.08,
+};
+
+function parseUTCDate(dateStr: string): Date {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  return new Date(Date.UTC(y, m - 1, d));
+}
+
+function formatUTCDate(date: Date): string {
+  const y = date.getUTCFullYear();
+  const m = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const d = String(date.getUTCDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+function addDaysUTC(dateStr: string, days: number): string {
+  const dt = parseUTCDate(dateStr);
+  dt.setUTCDate(dt.getUTCDate() + days);
+  return formatUTCDate(dt);
+}
+
+function getMondayOfWeekUTC(dateStr: string): string {
+  const dt = parseUTCDate(dateStr);
+  const dayOfWeek = dt.getUTCDay(); // 0 = Sun, 1 = Mon, ... 6 = Sat
+  const diffToMonday = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+  dt.setUTCDate(dt.getUTCDate() + diffToMonday);
+  return formatUTCDate(dt);
+}
+
+function diffDaysUTC(startStr: string, endStr: string): number {
+  const a = parseUTCDate(startStr).getTime();
+  const b = parseUTCDate(endStr).getTime();
+  return Math.round((b - a) / (24 * 60 * 60 * 1000));
+}
+
+interface ProductTaskActivityEvent {
+  taskId: string;
+  type: 'study' | 'practice' | 'exam';
+  activityDate: string; // YYYY-MM-DD
+  /** 若标记为独立新发起的再培训波次（例如在后7天观察窗内新启动的回炉/追加培训），不与前一周期合并 */
+  isNewWaveInterference?: boolean;
+}
+
+/**
+ * 为每个大单品构建按自然周展开的关联培训任务活动事件
+ * （同产品同一自然周内的学习、练习、考试任务自动归并至同一周内活动）
+ */
+function getProductTaskEvents(product: HeroProductItem): ProductTaskActivityEvent[] {
+  const prodNum = parseInt(product.id.replace('hero-prod-', ''), 10) || 1;
+  const tIds = product.taskIds.length > 0 ? product.taskIds : ['hero-task-1'];
+  const getTaskType = (idx: number): 'study' | 'practice' | 'exam' => {
+    const tId = tIds[idx % tIds.length];
+    return MOCK_HERO_TASKS.find(t => t.id === tId)?.type || 'study';
+  };
+
+  if (prodNum === 1) {
+    return [
+      // 周期1: 进行中当前周 (11/23—11/29)
+      { taskId: tIds[0], type: getTaskType(0), activityDate: '2026-11-23' },
+      // 周期2: 最近完整周期 (11/9—11/15，含同一自然周内多任务合并)
+      { taskId: tIds[0], type: 'study', activityDate: '2026-11-09' },
+      { taskId: tIds[1 % tIds.length], type: 'practice', activityDate: '2026-11-11' },
+      { taskId: tIds[2 % tIds.length], type: 'exam', activityDate: '2026-11-13' },
+      // 周期3: 跨月连续2周合并 (9/28—10/11 = 9/28—10/4 + 10/5—10/11)
+      { taskId: tIds[0], type: 'study', activityDate: '2026-09-29' },
+      { taskId: tIds[1 % tIds.length], type: 'practice', activityDate: '2026-10-06' },
+      { taskId: tIds[2 % tIds.length], type: 'exam', activityDate: '2026-10-09' },
+      // 周期4: 连续3周「长期连续培训」(8/17—9/6)
+      { taskId: tIds[0], type: 'study', activityDate: '2026-08-18' },
+      { taskId: tIds[1 % tIds.length], type: 'practice', activityDate: '2026-08-26' },
+      { taskId: tIds[2 % tIds.length], type: 'exam', activityDate: '2026-09-03' },
+    ];
+  }
+
+  if (prodNum === 2) {
+    return [
+      // 刚结束但后7天未完 (11/16—11/22 -> POST_WINDOW_INCOMPLETE)
+      { taskId: tIds[0], type: 'study', activityDate: '2026-11-17' },
+      { taskId: tIds[1 % tIds.length], type: 'practice', activityDate: '2026-11-20' },
+      // 跨月完整周期 (10/26—11/1)
+      { taskId: tIds[0], type: 'study', activityDate: '2026-10-27' },
+      { taskId: tIds[1 % tIds.length], type: 'exam', activityDate: '2026-10-30' },
+      // 历史周期 (9/14—9/20)
+      { taskId: tIds[0], type: 'study', activityDate: '2026-09-15' },
+    ];
+  }
+
+  if (prodNum === 3) {
+    return [
+      // 主评估周期 (11/9—11/15) + 后7天窗内(11/20)新发起再培训活动 -> 存在再次培训干扰
+      { taskId: tIds[0], type: 'study', activityDate: '2026-11-10' },
+      { taskId: tIds[1 % tIds.length], type: 'practice', activityDate: '2026-11-12' },
+      {
+        taskId: tIds[2 % tIds.length],
+        type: 'practice',
+        activityDate: '2026-11-20',
+        isNewWaveInterference: true,
+      },
+      // 历史周期 (10/5—10/11)
+      { taskId: tIds[0], type: 'study', activityDate: '2026-10-06' },
+      { taskId: tIds[1 % tIds.length], type: 'exam', activityDate: '2026-10-08' },
+      // 连续3周「长期连续培训」(8/3—8/23)
+      { taskId: tIds[0], type: 'study', activityDate: '2026-08-04' },
+      { taskId: tIds[1 % tIds.length], type: 'practice', activityDate: '2026-08-12' },
+      { taskId: tIds[2 % tIds.length], type: 'exam', activityDate: '2026-08-19' },
+    ];
+  }
+
+  if (prodNum === 4) {
+    return [
+      // 11/9—11/15 存在后7天销量缺失 -> DATA_INCOMPLETE（不作为默认周期）
+      { taskId: tIds[0], type: 'study', activityDate: '2026-11-10' },
+      { taskId: tIds[1 % tIds.length], type: 'practice', activityDate: '2026-11-13' },
+      // 默认最近完整周期 (10/12—10/18)
+      { taskId: tIds[0], type: 'study', activityDate: '2026-10-13' },
+      { taskId: tIds[1 % tIds.length], type: 'exam', activityDate: '2026-10-16' },
+      // 历史周期 (9/7—9/13)
+      { taskId: tIds[0], type: 'study', activityDate: '2026-09-08' },
+    ];
+  }
+
+  if (prodNum === 5) {
+    return [
+      // 默认最近完整周期 (11/2—11/8，负增长红字)
+      { taskId: tIds[0], type: 'study', activityDate: '2026-11-03' },
+      { taskId: tIds[1 % tIds.length], type: 'practice', activityDate: '2026-11-05' },
+      // 历史完整周期 (9/21—9/27，持平 0% 灰字)
+      { taskId: tIds[0], type: 'study', activityDate: '2026-09-22' },
+      { taskId: tIds[1 % tIds.length], type: 'exam', activityDate: '2026-09-25' },
+    ];
+  }
+
+  // 其余产品按序号确定性分布各类型周期（含跨月合并、长期连续、未完与完整历史周期）
+  const events: ProductTaskActivityEvent[] = [];
+  if (prodNum % 4 === 0) {
+    events.push({ taskId: tIds[0], type: getTaskType(0), activityDate: '2026-11-23' });
+  } else if (prodNum % 4 === 1) {
+    events.push({ taskId: tIds[0], type: getTaskType(0), activityDate: '2026-11-17' });
+  }
+
+  // 最近完整单周或跨月2周
+  if (prodNum % 3 === 0) {
+    events.push({ taskId: tIds[0], type: 'study', activityDate: '2026-10-27' });
+    events.push({ taskId: tIds[1 % tIds.length], type: 'practice', activityDate: '2026-11-04' });
+  } else {
+    events.push({ taskId: tIds[0], type: 'study', activityDate: '2026-11-09' });
+    events.push({ taskId: tIds[1 % tIds.length], type: 'exam', activityDate: '2026-11-12' });
+    if (prodNum % 5 === 2) {
+      events.push({
+        taskId: tIds[2 % tIds.length],
+        type: 'practice',
+        activityDate: '2026-11-19',
+        isNewWaveInterference: true,
+      });
+    }
+  }
+
+  // 早前完整周期
+  if (prodNum % 2 === 0) {
+    events.push({ taskId: tIds[0], type: 'study', activityDate: '2026-09-08' });
+    events.push({ taskId: tIds[1 % tIds.length], type: 'practice', activityDate: '2026-09-16' });
+    events.push({ taskId: tIds[2 % tIds.length], type: 'exam', activityDate: '2026-09-24' });
+  } else {
+    events.push({ taskId: tIds[0], type: 'study', activityDate: '2026-09-29' });
+    events.push({ taskId: tIds[1 % tIds.length], type: 'exam', activityDate: '2026-10-07' });
+  }
+
+  return events;
+}
+
+/**
+ * 拆分为 5 大区整件数，严格保证 5 个大区相加等于全国总件数
+ */
+function splitTotalAcrossRegions(
+  total: number
+): Record<'Jakarta' | 'Bandung' | 'Surabaya' | 'Medan' | 'Semarang', number> {
+  const j = Math.round(total * REGION_WEIGHTS.Jakarta);
+  const b = Math.round(total * REGION_WEIGHTS.Bandung);
+  const s = Math.round(total * REGION_WEIGHTS.Surabaya);
+  const m = Math.round(total * REGION_WEIGHTS.Medan);
+  const sm = Math.max(0, total - (j + b + s + m));
+  return { Jakarta: j, Bandung: b, Surabaya: s, Medan: m, Semarang: sm };
+}
+
+/**
+ * 精确生成 7 天窗口内的每日大区销量（用于保证核心演示样本精确呈现如 360 -> 486, +35% 且分大区加总无误差）
+ */
+function distributeWeeklyTotalToDays(
+  startDate: string,
+  weeklyTotal: number,
+  seed: number
+): Record<string, Record<'Jakarta' | 'Bandung' | 'Surabaya' | 'Medan' | 'Semarang', number>> {
+  const result: Record<string, Record<'Jakarta' | 'Bandung' | 'Surabaya' | 'Medan' | 'Semarang', number>> = {};
+  const base = Math.floor(weeklyTotal / 7);
+  let remainder = weeklyTotal - base * 7;
+
+  // 对每天先分配基准 + 余数，再切分到 5 个大区；大区加总必然精确等于当日总件数，7 日加总必然精确等于 weeklyTotal
+  for (let d = 0; d < 7; d++) {
+    const dateStr = addDaysUTC(startDate, d);
+    const bump = remainder > 0 ? 1 : 0;
+    if (remainder > 0) remainder -= 1;
+    const dayTotal = base + bump + (((d + seed) % 3 === 0 ? 1 : 0) - ((d + seed) % 3 === 1 ? 1 : 0));
+    // 保持7日总和绝对不变：仅对前6日微调，最后一日吸纳平衡
+    result[dateStr] = splitTotalAcrossRegions(Math.max(1, dayTotal));
+  }
+
+  // 校正最后一日确保7日全国合计绝对等于 weeklyTotal
+  const dayKeys = Object.keys(result);
+  let sumFirst6 = 0;
+  for (let i = 0; i < 6; i++) {
+    const row = result[dayKeys[i]];
+    sumFirst6 += row.Jakarta + row.Bandung + row.Surabaya + row.Medan + row.Semarang;
+  }
+  const lastTotal = Math.max(0, weeklyTotal - sumFirst6);
+  result[dayKeys[6]] = splitTotalAcrossRegions(lastTotal);
+  return result;
+}
+
+/**
+ * 获取某款大单品每日大区销量账本 (2026-06-01 至 2026-11-22)
+ * 若某天存在数据缺失，返回 null（不按 0 处理）
+ */
+function buildProductDailySalesLedger(
+  product: HeroProductItem
+): Record<string, Record<'Jakarta' | 'Bandung' | 'Surabaya' | 'Medan' | 'Semarang', number> | null> {
+  const prodNum = parseInt(product.id.replace('hero-prod-', ''), 10) || 1;
+  const ledger: Record<string, Record<'Jakarta' | 'Bandung' | 'Surabaya' | 'Medan' | 'Semarang', number> | null> = {};
+
+  // 先生成 2026-06-01 .. 2026-11-22 每日基础销售（按产品月度基准平滑折算日均销量，跨月连续不断档）
+  const baseDailyNational = Math.max(35, Math.round((product.monthlySales['2026-09']?.sellOutUnits || 18000) / 30 / 12));
+  const totalSpanDays = diffDaysUTC('2026-06-01', '2026-11-22') + 1;
+
+  for (let i = 0; i < totalSpanDays; i++) {
+    const dateStr = addDaysUTC('2026-06-01', i);
+    const wave = Math.round(Math.sin((i + prodNum * 3) * 0.45) * Math.max(2, Math.round(baseDailyNational * 0.14)));
+    const dayNational = Math.max(12, baseDailyNational + wave);
+    ledger[dateStr] = splitTotalAcrossRegions(dayNational);
+  }
+
+  // 按产品设定关键窗口的真实对比销量（覆盖前7天/后7天整周，严格保持日销量可加总与跨月连贯）
+  const applyWindowTotal = (startDate: string, totalUnits: number, seed: number) => {
+    const mapped = distributeWeeklyTotalToDays(startDate, totalUnits, seed);
+    Object.entries(mapped).forEach(([d, regMap]) => {
+      ledger[d] = regMap;
+    });
+  };
+
+  if (prodNum === 1) {
+    // 11/9—11/15: pre (11/2—11/8) = 360 PCS, post (11/16—11/22) = 486 PCS (+35%)
+    applyWindowTotal('2026-11-02', 360, 1);
+    applyWindowTotal('2026-11-16', 486, 2);
+    // 9/28—10/11: pre (9/21—9/27) = 320 PCS, post (10/12—10/18) = 416 PCS (+30%)
+    applyWindowTotal('2026-09-21', 320, 3);
+    applyWindowTotal('2026-10-12', 416, 4);
+    // 8/17—9/6: pre (8/10—8/16) = 280 PCS, post (9/7—9/13) = 336 PCS (+20%)
+    applyWindowTotal('2026-08-10', 280, 5);
+    applyWindowTotal('2026-09-07', 336, 6);
+  } else if (prodNum === 2) {
+    // 11/16—11/22 的前7天 (11/9—11/15)
+    applyWindowTotal('2026-11-09', 510, 7);
+    // 10/26—11/1 跨月: pre = 480, post = 612 (+27.5%)
+    applyWindowTotal('2026-10-19', 480, 8);
+    applyWindowTotal('2026-11-02', 612, 9);
+    // 9/14—9/20: pre = 420, post = 495 (+17.9%)
+    applyWindowTotal('2026-09-07', 420, 10);
+    applyWindowTotal('2026-09-21', 495, 11);
+  } else if (prodNum === 3) {
+    // 11/9—11/15 (存在再次培训干扰): pre = 310, post = 403 (+30%)
+    applyWindowTotal('2026-11-02', 310, 12);
+    applyWindowTotal('2026-11-16', 403, 13);
+    // 10/5—10/11: pre = 290, post = 348 (+20%)
+    applyWindowTotal('2026-09-28', 290, 14);
+    applyWindowTotal('2026-10-12', 348, 15);
+    // 8/3—8/23: pre = 250, post = 295 (+18%)
+    applyWindowTotal('2026-07-27', 250, 16);
+    applyWindowTotal('2026-08-24', 295, 17);
+  } else if (prodNum === 4) {
+    // 11/9—11/15: pre 完整，但 post 中 11/19、11/20 数据缺失 -> DATA_INCOMPLETE
+    applyWindowTotal('2026-11-02', 440, 18);
+    ledger['2026-11-19'] = null;
+    ledger['2026-11-20'] = null;
+    // 10/12—10/18 (默认最近完整): pre = 410, post = 512 (+24.9%)
+    applyWindowTotal('2026-10-05', 410, 19);
+    applyWindowTotal('2026-10-19', 512, 20);
+    // 9/7—9/13: pre = 380, post = 437 (+15%)
+    applyWindowTotal('2026-08-31', 380, 21);
+    applyWindowTotal('2026-09-14', 437, 22);
+  } else if (prodNum === 5) {
+    // 11/2—11/8: 负增长 (-8.5%)
+    applyWindowTotal('2026-10-26', 400, 23);
+    applyWindowTotal('2026-11-09', 366, 24);
+    // 9/21—9/27: 持平 (0%)
+    applyWindowTotal('2026-09-14', 350, 25);
+    applyWindowTotal('2026-09-28', 350, 26);
+  } else {
+    // 其余产品根据 prodNum 生成稳定且带正向/负向/持平差异的窗口销量
+    const basePre = 220 + ((prodNum * 37) % 280);
+    const deltaPattern = prodNum % 7;
+    const growthFactor =
+      deltaPattern === 0 ? 0 : deltaPattern === 5 ? -0.065 : 0.12 + (deltaPattern * 0.045);
+
+    const post1 = Math.round(basePre * (1 + growthFactor));
+    if (prodNum % 3 === 0) {
+      applyWindowTotal('2026-10-19', basePre, prodNum);
+      applyWindowTotal('2026-11-09', post1, prodNum + 1);
+    } else {
+      applyWindowTotal('2026-11-02', basePre, prodNum);
+      applyWindowTotal('2026-11-16', post1, prodNum + 1);
+    }
+
+    // 早前历史周期（同样跨月可查）
+    const baseHistPre = Math.round(basePre * 0.9);
+    const histPost = Math.round(baseHistPre * 1.16);
+    if (prodNum % 2 === 0) {
+      applyWindowTotal('2026-08-31', baseHistPre, prodNum + 2);
+      applyWindowTotal('2026-09-28', histPost, prodNum + 3);
+    } else {
+      applyWindowTotal('2026-09-21', baseHistPre, prodNum + 2);
+      applyWindowTotal('2026-10-12', histPost, prodNum + 3);
+    }
+  }
+
+  return ledger;
+}
+
+/**
+ * 在不将缺失日期当成 0 的前提下，汇总 [startDate, endDate] 7 天窗口内的实际销量
+ * 返回 { sum: number; isComplete: boolean }
+ */
+function sumWindowSalesStrict(
+  ledger: Record<string, Record<'Jakarta' | 'Bandung' | 'Surabaya' | 'Medan' | 'Semarang', number> | null>,
+  startDate: string,
+  endDate: string,
+  region: RegionKey
+): { sum: number | null; isComplete: boolean } {
+  const days = diffDaysUTC(startDate, endDate) + 1;
+  if (days <= 0) return { sum: null, isComplete: false };
+
+  let total = 0;
+  for (let i = 0; i < days; i++) {
+    const dateStr = addDaysUTC(startDate, i);
+    // 日期超过已知最新日（如今天及以后）或显式为 null，均视为不完整，绝不补 0
+    if (dateStr >= HERO_CYCLE_REFERENCE_TODAY) {
+      return { sum: null, isComplete: false };
+    }
+    const dayEntry = ledger[dateStr];
+    if (!dayEntry) {
+      return { sum: null, isComplete: false };
+    }
+    if (region === 'ALL') {
+      total += REGION_KEYS.reduce((acc, rk) => acc + dayEntry[rk], 0);
+    } else {
+      const val = dayEntry[region];
+      if (typeof val !== 'number') {
+        return { sum: null, isComplete: false };
+      }
+      total += val;
+    }
+  }
+  return { sum: total, isComplete: true };
+}
+
+/**
+ * 核心计算函数：识别某大单品的自然周培训周期及培训前后 7 天销量对比（按时间倒序返回，最近周期在前）
+ * 严格遵循规则：
+ * 1. 周一至周日自然周识别，同产品同一周内的学习/练习/考试合并为 1 次培训活动
+ * 2. 连续自然周自动合并为 1 次连续培训周期；存在空档周则拆分为独立周期
+ * 3. 连续 3 周及以上标记「长期连续培训」
+ * 4. 培训前 7 天 = 周期开始前连续 7 天；培训后 7 天 = 周期结束后连续 7 天（支持跨月，不受筛选月份截断，受筛选大区过滤）
+ * 5. 若培训后 7 天窗口内存在新的培训活动，标记「存在再次培训干扰」
+ * 6. 存在任一窗口缺失数据时，标记「数据不完整」，不得按 0 处理
+ */
+export function getHeroProductTrainingCycles(
+  product: HeroProductItem,
+  region: RegionKey
+): HeroTrainingCycleComparison[] {
+  const events = getProductTaskEvents(product);
+  const ledger = buildProductDailySalesLedger(product);
+
+  // 将正常波次事件按自然周（周一 YYYY-MM-DD）聚合；独立干扰波次单独保留用于检测「存在再次培训干扰」与未完周期
+  const regularEvents = events.filter(e => !e.isNewWaveInterference);
+  const interferenceEvents = events.filter(e => e.isNewWaveInterference);
+
+  const weekMap = new Map<string, Set<string>>();
+  regularEvents.forEach(ev => {
+    const monday = getMondayOfWeekUTC(ev.activityDate);
+    if (!weekMap.has(monday)) {
+      weekMap.set(monday, new Set<string>());
+    }
+    weekMap.get(monday)!.add(ev.taskId);
+  });
+
+  // 按自然周升序排列后，合并连续自然周（间隔恰好 7 天）
+  const sortedMondays = Array.from(weekMap.keys()).sort();
+  interface MergedCycleDraft {
+    startMonday: string;
+    endSunday: string;
+    weekCount: number;
+    taskIds: Set<string>;
+  }
+
+  const mergedDrafts: MergedCycleDraft[] = [];
+  sortedMondays.forEach(monday => {
+    const taskSet = weekMap.get(monday)!;
+    const prev = mergedDrafts[mergedDrafts.length - 1];
+    if (prev) {
+      const prevLastMonday = addDaysUTC(prev.endSunday, -6);
+      if (diffDaysUTC(prevLastMonday, monday) === 7) {
+        // 连续自然周，合并
+        prev.endSunday = addDaysUTC(monday, 6);
+        prev.weekCount += 1;
+        taskSet.forEach(id => prev.taskIds.add(id));
+        return;
+      }
+    }
+    mergedDrafts.push({
+      startMonday: monday,
+      endSunday: addDaysUTC(monday, 6),
+      weekCount: 1,
+      taskIds: new Set(taskSet),
+    });
+  });
+
+  // 生成每个周期的对比指标
+  const cycles: HeroTrainingCycleComparison[] = mergedDrafts.map((draft, idx) => {
+    const startDate = draft.startMonday;
+    const endDate = draft.endSunday;
+    const preStartDate = addDaysUTC(startDate, -7);
+    const preEndDate = addDaysUTC(startDate, -1);
+    const postStartDate = addDaysUTC(endDate, 1);
+    const postEndDate = addDaysUTC(endDate, 7);
+
+    // 判断周期状态
+    let status: HeroTrainingCycleStatus = 'COMPLETE';
+    let preSales: number | null = null;
+    let postSales: number | null = null;
+    let changeRate: number | null = null;
+
+    if (HERO_CYCLE_REFERENCE_TODAY <= endDate) {
+      status = 'CYCLE_ONGOING';
+    } else if (HERO_CYCLE_REFERENCE_TODAY <= postEndDate) {
+      status = 'POST_WINDOW_INCOMPLETE';
+      const preRes = sumWindowSalesStrict(ledger, preStartDate, preEndDate, region);
+      preSales = preRes.isComplete ? preRes.sum : null;
+    } else {
+      const preRes = sumWindowSalesStrict(ledger, preStartDate, preEndDate, region);
+      const postRes = sumWindowSalesStrict(ledger, postStartDate, postEndDate, region);
+      preSales = preRes.isComplete ? preRes.sum : null;
+      postSales = postRes.isComplete ? postRes.sum : null;
+
+      if (!preRes.isComplete || !postRes.isComplete || preSales === null || postSales === null) {
+        status = 'DATA_INCOMPLETE';
+      } else {
+        status = 'COMPLETE';
+        changeRate = preSales > 0
+          ? Number((((postSales - preSales) / preSales) * 100).toFixed(1))
+          : null;
+      }
+    }
+
+    // 检查培训后 7 天窗口 [postStartDate, postEndDate] 内是否出现新的培训活动
+    const hasInterferenceInPostWindow = interferenceEvents.some(
+      ev => ev.activityDate >= postStartDate && ev.activityDate <= postEndDate
+    );
+
+    return {
+      cycleId: `${product.id}-cycle-${idx + 1}-${startDate}`,
+      startDate,
+      endDate,
+      weekCount: draft.weekCount,
+      preStartDate,
+      preEndDate,
+      postStartDate,
+      postEndDate,
+      taskIds: Array.from(draft.taskIds),
+      status,
+      isLongTermContinuous: draft.weekCount >= 3,
+      hasRetrainingInterference: hasInterferenceInPostWindow,
+      preSales,
+      postSales,
+      changeRate,
+    };
+  });
+
+  // 按周期时间倒序（最新周期排在最前）
+  return cycles.sort((a, b) => b.startDate.localeCompare(a.startDate));
+}
+
 

@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   ArrowLeft,
   Calendar,
@@ -31,13 +31,15 @@ import {
   HeroBAPerson,
   MonthKey,
   BrandKey,
-  RegionKey
+  RegionKey,
+  HeroTrainingCycleComparison
 } from '../../types/heroProduct';
 import {
   MOCK_HERO_TASKS,
   MOCK_HERO_BA_LIST,
   computeHeroProductRowStats,
   getHeroProductTrendIntervals,
+  getHeroProductTrainingCycles,
   HERO_MONTH_OPTIONS,
   HERO_BRAND_OPTIONS,
   HERO_REGION_OPTIONS
@@ -81,6 +83,30 @@ export const HeroProductDetailView: React.FC<HeroProductDetailViewProps> = ({
 
   // 销售明细查看展开状态
   const [showSalesBreakdown, setShowSalesBreakdown] = useState(false);
+
+  // 培训前后7天销量对比：自然周培训周期列表与选中周期状态
+  const trainingCycles = useMemo(() => {
+    return getHeroProductTrainingCycles(product, filter.region);
+  }, [product, filter.region]);
+
+  const defaultCycleId = useMemo(() => {
+    const firstComplete = trainingCycles.find(c => c.status === 'COMPLETE');
+    return firstComplete?.cycleId ?? trainingCycles[0]?.cycleId ?? '';
+  }, [trainingCycles]);
+
+  const [selectedCycleId, setSelectedCycleId] = useState<string>('');
+
+  useEffect(() => {
+    setSelectedCycleId(defaultCycleId);
+  }, [defaultCycleId]);
+
+  const activeCycle: HeroTrainingCycleComparison | undefined = useMemo(() => {
+    return (
+      trainingCycles.find(c => c.cycleId === selectedCycleId) ||
+      trainingCycles.find(c => c.cycleId === defaultCycleId) ||
+      trainingCycles[0]
+    );
+  }, [trainingCycles, selectedCycleId, defaultCycleId]);
 
   // 计算当前产品在当前筛选范围下的综合指标
   const rowStats = useMemo(() => {
@@ -773,85 +799,172 @@ export const HeroProductDetailView: React.FC<HeroProductDetailViewProps> = ({
           </div>
         )}
 
-        {/* ================= TAB 3: 培训与销售表现 (双纵轴堆叠柱状图+折线图趋势，严格不设销售目标与达成率) ================= */}
+        {/* ================= TAB 3: 培训与销售表现 ================= */}
         {activeTab === 'sales' && (
           <div className="space-y-6">
-            {/* Top 3 Core Metrics Row */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* Metric 1: 实际销量 (SELL OUT) */}
-              <div className="bg-[#FAF8F5] p-4 rounded-xl border border-[#EFECE5]">
-                <div className="text-xs text-[#6B7280] font-medium flex items-center justify-between">
-                  <span>实际销量 (SELL OUT)</span>
-                  <span className="text-[10px] bg-white text-[#9E4A2B] px-1.5 py-0.2 rounded border border-[#E5E1D8]">
-                    {filter.month}
-                  </span>
-                </div>
-                <div className="flex items-baseline gap-2 mt-2">
-                  <span className="text-3xl font-bold font-mono text-[#111827] tabular-nums">
-                    {rowStats.sellOutUnits.toLocaleString()}
-                  </span>
-                  <span className="text-xs text-[#6B7280]">件</span>
-                </div>
-                <div className="text-[11px] text-[#6B7280] mt-1 flex items-center justify-between">
-                  <span>范围: {filter.region === 'ALL' ? '全国实际销售' : `${filter.region} 大区`}</span>
-                  {rowStats.momGrowth !== null && (
-                    <span className={`font-mono font-semibold flex items-center ${
-                      rowStats.momGrowth >= 0 ? 'text-[#059669]' : 'text-[#DC2626]'
-                    }`}>
-                      {rowStats.momGrowth >= 0 ? <TrendingUp className="w-3.5 h-3.5 mr-0.5" /> : <TrendingDown className="w-3.5 h-3.5 mr-0.5" />}
-                      MoM {rowStats.momGrowth >= 0 ? `+${rowStats.momGrowth}%` : `${rowStats.momGrowth}%`}
+            {/* 顶部两行指标整合展示（不设额外分区标题） */}
+            <div className="space-y-4">
+              {/* 第一行：原有 3 项核心指标 */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* Metric 1: 实际销量 (SELL OUT) */}
+                <div className="bg-[#FAF8F5] p-4 rounded-xl border border-[#EFECE5]">
+                  <div className="text-xs text-[#6B7280] font-medium flex items-center justify-between">
+                    <span>实际销量 (SELL OUT)</span>
+                    <span className="text-[10px] bg-white text-[#9E4A2B] px-1.5 py-0.2 rounded border border-[#E5E1D8]">
+                      {filter.month}
                     </span>
-                  )}
+                  </div>
+                  <div className="flex items-baseline gap-2 mt-2">
+                    <span className="text-3xl font-bold font-mono text-[#111827] tabular-nums">
+                      {rowStats.sellOutUnits.toLocaleString()}
+                    </span>
+                    <span className="text-xs text-[#6B7280]">件</span>
+                  </div>
+                  <div className="text-[11px] text-[#6B7280] mt-1 flex items-center justify-between">
+                    <span>范围: {filter.region === 'ALL' ? '全国实际销售' : `${filter.region} 大区`}</span>
+                    {rowStats.momGrowth !== null && (
+                      <span className={`font-mono font-semibold flex items-center ${
+                        rowStats.momGrowth >= 0 ? 'text-[#059669]' : 'text-[#DC2626]'
+                      }`}>
+                        {rowStats.momGrowth >= 0 ? <TrendingUp className="w-3.5 h-3.5 mr-0.5" /> : <TrendingDown className="w-3.5 h-3.5 mr-0.5" />}
+                        MoM {rowStats.momGrowth >= 0 ? `+${rowStats.momGrowth}%` : `${rowStats.momGrowth}%`}
+                      </span>
+                    )}
+                  </div>
                 </div>
-              </div>
 
-              {/* Metric 2: 培训参与人次 (带问号提示) */}
-              <div className="bg-[#FAF8F5] p-4 rounded-xl border border-[#EFECE5]">
-                <div className="text-xs text-[#6B7280] font-medium flex items-center gap-1">
-                  <span>培训参与人次</span>
-                  <div className="group/tip relative inline-flex">
-                    <HelpCircle className="w-3.5 h-3.5 text-[#9CA3AF] hover:text-[#9E4A2B] cursor-help" />
-                    <div className="hidden group-hover/tip:block absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 z-30 w-72 p-2.5 bg-[#1E1F24] text-white text-[11px] rounded-lg shadow-lg font-normal text-left pointer-events-none leading-relaxed">
-                      当前筛选范围内，所有BA的学习完成次数、练习有效提交次数及考试有效参与次数之和。同一练习任务多次有效提交分别计数。
+                {/* Metric 2: 培训参与人次 (带问号提示) */}
+                <div className="bg-[#FAF8F5] p-4 rounded-xl border border-[#EFECE5]">
+                  <div className="text-xs text-[#6B7280] font-medium flex items-center gap-1">
+                    <span>培训参与人次</span>
+                    <div className="group/tip relative inline-flex">
+                      <HelpCircle className="w-3.5 h-3.5 text-[#9CA3AF] hover:text-[#9E4A2B] cursor-help" />
+                      <div className="hidden group-hover/tip:block absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 z-30 w-72 p-2.5 bg-[#1E1F24] text-white text-[11px] rounded-lg shadow-lg font-normal text-left pointer-events-none leading-relaxed">
+                        当前筛选范围内，所有BA的学习完成次数、练习有效提交次数及考试有效参与次数之和。同一练习任务多次有效提交分别计数。
+                      </div>
                     </div>
                   </div>
+                  <div className="flex items-baseline gap-2 mt-2">
+                    <span className="text-3xl font-bold font-mono text-[#9E4A2B] tabular-nums">
+                      {rowStats.trainingPersonTimes.toLocaleString()}
+                    </span>
+                    <span className="text-xs text-[#6B7280]">人次</span>
+                  </div>
+                  <div className="text-[11px] text-[#6B7280] mt-1 flex items-center gap-2">
+                    <span className="text-[#1D4ED8]">{rowStats.studyPersonTimes} 学习</span>
+                    <span>·</span>
+                    <span className="text-[#C2410C]">{rowStats.practicePersonTimes} 练习</span>
+                    <span>·</span>
+                    <span className="text-[#7C3AED]">{rowStats.examPersonTimes} 考试</span>
+                  </div>
                 </div>
-                <div className="flex items-baseline gap-2 mt-2">
-                  <span className="text-3xl font-bold font-mono text-[#9E4A2B] tabular-nums">
-                    {rowStats.trainingPersonTimes.toLocaleString()}
-                  </span>
-                  <span className="text-xs text-[#6B7280]">人次</span>
-                </div>
-                <div className="text-[11px] text-[#6B7280] mt-1 flex items-center gap-2">
-                  <span className="text-[#1D4ED8]">{rowStats.studyPersonTimes} 学习</span>
-                  <span>·</span>
-                  <span className="text-[#C2410C]">{rowStats.practicePersonTimes} 练习</span>
-                  <span>·</span>
-                  <span className="text-[#7C3AED]">{rowStats.examPersonTimes} 考试</span>
+
+                {/* Metric 3: BA覆盖人数 */}
+                <div className="bg-[#FAF8F5] p-4 rounded-xl border border-[#EFECE5]">
+                  <div className="text-xs text-[#6B7280] font-medium">
+                    BA 覆盖人数
+                  </div>
+                  <div className="flex items-baseline gap-2 mt-2">
+                    <span className="text-3xl font-bold font-mono text-[#059669] tabular-nums">
+                      {rowStats.participatedCount}
+                    </span>
+                    <span className="text-xs text-[#6B7280]">/ {rowStats.totalRequiredBAs} 人</span>
+                  </div>
+                  <div className="mt-1.5 flex items-center gap-2">
+                    <div className="flex-1 bg-[#E5E1D8] h-1.5 rounded-full overflow-hidden">
+                      <div
+                        style={{ width: `${rowStats.coverageRate}%` }}
+                        className="bg-[#059669] h-full rounded-full"
+                      />
+                    </div>
+                    <span className="text-[11px] font-mono font-bold text-[#059669]">
+                      {rowStats.coverageRate}%
+                    </span>
+                  </div>
                 </div>
               </div>
 
-              {/* Metric 3: BA覆盖人数 */}
-              <div className="bg-[#FAF8F5] p-4 rounded-xl border border-[#EFECE5]">
-                <div className="text-xs text-[#6B7280] font-medium">
-                  BA 覆盖人数
-                </div>
-                <div className="flex items-baseline gap-2 mt-2">
-                  <span className="text-3xl font-bold font-mono text-[#059669] tabular-nums">
-                    {rowStats.participatedCount}
-                  </span>
-                  <span className="text-xs text-[#6B7280]">/ {rowStats.totalRequiredBAs} 人</span>
-                </div>
-                <div className="mt-1.5 flex items-center gap-2">
-                  <div className="flex-1 bg-[#E5E1D8] h-1.5 rounded-full overflow-hidden">
+              {/* 第二行：原有 3 项培训质量指标 */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                {/* 指标 1: 学习完成率 */}
+                <div className="bg-[#FAF8F5] p-4 rounded-xl border border-[#EFECE5]">
+                  <div className="flex items-center justify-between text-xs text-[#6B7280]">
+                    <span className="font-semibold text-[#111827]">学习完成率</span>
+                    <div className="group/tip relative inline-flex">
+                      <HelpCircle className="w-3.5 h-3.5 text-[#9CA3AF] hover:text-[#9E4A2B] cursor-help" />
+                      <div className="hidden group-hover/tip:block absolute bottom-full right-0 mb-1.5 z-30 w-64 p-2 bg-[#1E1F24] text-white text-[11px] rounded-lg shadow-lg font-normal text-left pointer-events-none leading-relaxed">
+                        当前产品关联学习任务的实际有效完成次数 / 应完成任务总人次。
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-baseline gap-2 mt-2">
+                    <span className="text-3xl font-bold font-mono text-[#2563EB] tabular-nums">
+                      {rowStats.studyCompletionRate}%
+                    </span>
+                  </div>
+                  <div className="w-full bg-[#E5E1D8] h-1.5 rounded-full overflow-hidden mt-2">
                     <div
-                      style={{ width: `${rowStats.coverageRate}%` }}
-                      className="bg-[#059669] h-full rounded-full"
+                      style={{ width: `${rowStats.studyCompletionRate}%` }}
+                      className="bg-[#2563EB] h-full rounded-full transition-all"
                     />
                   </div>
-                  <span className="text-[11px] font-mono font-bold text-[#059669]">
-                    {rowStats.coverageRate}%
-                  </span>
+                  <div className="text-[11px] text-[#6B7280] mt-1.5">
+                    课件阅读及知识点通关比率
+                  </div>
+                </div>
+
+                {/* 指标 2: 练习达标率 */}
+                <div className="bg-[#FAF8F5] p-4 rounded-xl border border-[#EFECE5]">
+                  <div className="flex items-center justify-between text-xs text-[#6B7280]">
+                    <span className="font-semibold text-[#111827]">练习达标率</span>
+                    <div className="group/tip relative inline-flex">
+                      <HelpCircle className="w-3.5 h-3.5 text-[#9CA3AF] hover:text-[#9E4A2B] cursor-help" />
+                      <div className="hidden group-hover/tip:block absolute bottom-full right-0 mb-1.5 z-30 w-64 p-2 bg-[#1E1F24] text-white text-[11px] rounded-lg shadow-lg font-normal text-left pointer-events-none leading-relaxed">
+                        当前产品关联练习任务中达到合格标准的人数 / 实际参与练习总人数（以每位BA最高成绩判定）。
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-baseline gap-2 mt-2">
+                    <span className="text-3xl font-bold font-mono text-[#C2410C] tabular-nums">
+                      {rowStats.practiceQualifiedRate}%
+                    </span>
+                  </div>
+                  <div className="w-full bg-[#E5E1D8] h-1.5 rounded-full overflow-hidden mt-2">
+                    <div
+                      style={{ width: `${rowStats.practiceQualifiedRate}%` }}
+                      className="bg-[#C2410C] h-full rounded-full transition-all"
+                    />
+                  </div>
+                  <div className="text-[11px] text-[#6B7280] mt-1.5">
+                    AI数字人对练最高成绩达标比率
+                  </div>
+                </div>
+
+                {/* 指标 3: 考试及格率 */}
+                <div className="bg-[#FAF8F5] p-4 rounded-xl border border-[#EFECE5]">
+                  <div className="flex items-center justify-between text-xs text-[#6B7280]">
+                    <span className="font-semibold text-[#111827]">考试及格率</span>
+                    <div className="group/tip relative inline-flex">
+                      <HelpCircle className="w-3.5 h-3.5 text-[#9CA3AF] hover:text-[#9E4A2B] cursor-help" />
+                      <div className="hidden group-hover/tip:block absolute bottom-full right-0 mb-1.5 z-30 w-64 p-2 bg-[#1E1F24] text-white text-[11px] rounded-lg shadow-lg font-normal text-left pointer-events-none leading-relaxed">
+                        当前产品关联考试任务中达到及格线的人数 / 实际参加考试总人数。
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-baseline gap-2 mt-2">
+                    <span className="text-3xl font-bold font-mono text-[#7C3AED] tabular-nums">
+                      {rowStats.examPassRate}%
+                    </span>
+                  </div>
+                  <div className="w-full bg-[#E5E1D8] h-1.5 rounded-full overflow-hidden mt-2">
+                    <div
+                      style={{ width: `${rowStats.examPassRate}%` }}
+                      className="bg-[#7C3AED] h-full rounded-full transition-all"
+                    />
+                  </div>
+                  <div className="text-[11px] text-[#6B7280] mt-1.5">
+                    专项理论考核及格达标比率
+                  </div>
                 </div>
               </div>
             </div>
@@ -1202,89 +1315,129 @@ export const HeroProductDetailView: React.FC<HeroProductDetailViewProps> = ({
               })()}
             </div>
 
-            {/* 趋势图下方展示 3 项核心质量指标（严格满足：不设周度趋势，不展示考试均分，带问号说明） */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* 指标 1: 学习完成率 */}
-              <div className="bg-[#FAF8F5] p-4 rounded-xl border border-[#EFECE5]">
-                <div className="flex items-center justify-between text-xs text-[#6B7280]">
-                  <span className="font-semibold text-[#111827]">学习完成率</span>
-                  <div className="group/tip relative inline-flex">
-                    <HelpCircle className="w-3.5 h-3.5 text-[#9CA3AF] hover:text-[#9E4A2B] cursor-help" />
-                    <div className="hidden group-hover/tip:block absolute bottom-full right-0 mb-1.5 z-30 w-64 p-2 bg-[#1E1F24] text-white text-[11px] rounded-lg shadow-lg font-normal text-left pointer-events-none leading-relaxed">
-                      当前产品关联学习任务的实际有效完成次数 / 应完成任务总人次。
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-baseline gap-2 mt-2">
-                  <span className="text-3xl font-bold font-mono text-[#2563EB] tabular-nums">
-                    {rowStats.studyCompletionRate}%
-                  </span>
-                </div>
-                <div className="w-full bg-[#E5E1D8] h-1.5 rounded-full overflow-hidden mt-2">
-                  <div
-                    style={{ width: `${rowStats.studyCompletionRate}%` }}
-                    className="bg-[#2563EB] h-full rounded-full transition-all"
-                  />
-                </div>
-                <div className="text-[11px] text-[#6B7280] mt-1.5">
-                  课件阅读及知识点通关比率
-                </div>
-              </div>
+            {/* 新增：培训前后7天销量对比模块（三列横向布局 + 两行展示 + 历史周期切换） */}
+            {activeCycle && (() => {
+              const formatMD = (dateStr: string) => {
+                const parts = dateStr.split('-');
+                return `${parseInt(parts[1], 10)}/${parseInt(parts[2], 10)}`;
+              };
 
-              {/* 指标 2: 练习达标率 */}
-              <div className="bg-[#FAF8F5] p-4 rounded-xl border border-[#EFECE5]">
-                <div className="flex items-center justify-between text-xs text-[#6B7280]">
-                  <span className="font-semibold text-[#111827]">练习达标率</span>
-                  <div className="group/tip relative inline-flex">
-                    <HelpCircle className="w-3.5 h-3.5 text-[#9CA3AF] hover:text-[#9E4A2B] cursor-help" />
-                    <div className="hidden group-hover/tip:block absolute bottom-full right-0 mb-1.5 z-30 w-64 p-2 bg-[#1E1F24] text-white text-[11px] rounded-lg shadow-lg font-normal text-left pointer-events-none leading-relaxed">
-                      当前产品关联练习任务中达到合格标准的人数 / 实际参与练习总人数（以每位BA最高成绩判定）。
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-baseline gap-2 mt-2">
-                  <span className="text-3xl font-bold font-mono text-[#C2410C] tabular-nums">
-                    {rowStats.practiceQualifiedRate}%
-                  </span>
-                </div>
-                <div className="w-full bg-[#E5E1D8] h-1.5 rounded-full overflow-hidden mt-2">
-                  <div
-                    style={{ width: `${rowStats.practiceQualifiedRate}%` }}
-                    className="bg-[#C2410C] h-full rounded-full transition-all"
-                  />
-                </div>
-                <div className="text-[11px] text-[#6B7280] mt-1.5">
-                  AI数字人对练最高成绩达标比率
-                </div>
-              </div>
+              const formatRate = (rate: number) => {
+                const absFormatted = Number.isInteger(rate) ? rate.toFixed(0) : rate.toFixed(1);
+                return rate > 0 ? `+${absFormatted}%` : `${absFormatted}%`;
+              };
 
-              {/* 指标 3: 考试及格率 */}
-              <div className="bg-[#FAF8F5] p-4 rounded-xl border border-[#EFECE5]">
-                <div className="flex items-center justify-between text-xs text-[#6B7280]">
-                  <span className="font-semibold text-[#111827]">考试及格率</span>
-                  <div className="group/tip relative inline-flex">
-                    <HelpCircle className="w-3.5 h-3.5 text-[#9CA3AF] hover:text-[#9E4A2B] cursor-help" />
-                    <div className="hidden group-hover/tip:block absolute bottom-full right-0 mb-1.5 z-30 w-64 p-2 bg-[#1E1F24] text-white text-[11px] rounded-lg shadow-lg font-normal text-left pointer-events-none leading-relaxed">
-                      当前产品关联考试任务中达到及格线的人数 / 实际参加考试总人数。
+              const isIncompleteWindow =
+                activeCycle.status === 'CYCLE_ONGOING' ||
+                activeCycle.status === 'POST_WINDOW_INCOMPLETE' ||
+                activeCycle.status === 'DATA_INCOMPLETE';
+
+              const changeColorClass =
+                activeCycle.status !== 'COMPLETE' || activeCycle.changeRate === null
+                  ? 'text-[#9CA3AF]'
+                  : activeCycle.changeRate > 0
+                  ? 'text-[#059669]'
+                  : activeCycle.changeRate < 0
+                  ? 'text-[#DC2626]'
+                  : 'text-[#6B7280]';
+
+              const incompleteHintText =
+                activeCycle.status === 'CYCLE_ONGOING'
+                  ? '当前周期尚未结束，数据暂未完整'
+                  : activeCycle.status === 'POST_WINDOW_INCOMPLETE'
+                  ? '培训后7天尚未完成，数据暂未完整'
+                  : activeCycle.status === 'DATA_INCOMPLETE'
+                  ? '部分日期销量缺失，数据不完整'
+                  : '';
+
+              return (
+                <div className="bg-white p-5 rounded-xl border border-[#E8E6E1] space-y-4">
+                  {/* 顶部极简行：条件状态标注 + 历史周期切换 */}
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {activeCycle.isLongTermContinuous && (
+                        <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-[#FEF3C7] text-[#B45309] border border-[#FDE68A]">
+                          长期连续培训 · 结果仅供参考
+                        </span>
+                      )}
+                      {activeCycle.hasRetrainingInterference && (
+                        <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-[#FEF2F2] text-[#B91C1C] border border-[#FECACA]">
+                          存在再次培训干扰
+                        </span>
+                      )}
+                      {isIncompleteWindow && (
+                        <span className="text-[11px] font-medium px-2 py-0.5 rounded bg-[#F3F4F6] text-[#4B5563] border border-[#E5E7EB]">
+                          {activeCycle.status === 'DATA_INCOMPLETE' ? '数据不完整' : '数据暂未完整'}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2 ml-auto">
+                      <span className="text-xs text-[#6B7280]">培训周期</span>
+                      <select
+                        value={activeCycle.cycleId}
+                        onChange={(e) => setSelectedCycleId(e.target.value)}
+                        aria-label="切换历史培训周期"
+                        className="text-xs font-mono font-medium text-[#111827] bg-[#FAF8F5] border border-[#D6D0C4] rounded-lg px-2.5 py-1.5 outline-none focus:border-[#9E4A2B] cursor-pointer"
+                      >
+                        {trainingCycles.map(cycle => {
+                          const rangeText = `${formatMD(cycle.startDate)}—${formatMD(cycle.endDate)}`;
+                          const statusSuffix =
+                            cycle.status === 'CYCLE_ONGOING'
+                              ? ' (进行中)'
+                              : cycle.status === 'POST_WINDOW_INCOMPLETE'
+                              ? ' (后7天未完)'
+                              : cycle.status === 'DATA_INCOMPLETE'
+                              ? ' (数据不完整)'
+                              : '';
+                          return (
+                            <option key={cycle.cycleId} value={cycle.cycleId}>
+                              {rangeText}{statusSuffix}
+                            </option>
+                          );
+                        })}
+                      </select>
                     </div>
                   </div>
+
+                  {/* 主体：三列等宽横向布局，两行展示 */}
+                  <div className="grid grid-cols-3 gap-4">
+                    <div className="bg-[#FAF8F5] px-4 py-3.5 rounded-xl border border-[#EFECE5]">
+                      <div className="text-xs text-[#6B7280] font-medium">培训前7天</div>
+                      <div className="mt-2 text-2xl sm:text-3xl font-bold font-mono text-[#111827] tabular-nums">
+                        {activeCycle.preSales !== null
+                          ? `${activeCycle.preSales.toLocaleString()} PCS`
+                          : '--'}
+                      </div>
+                    </div>
+
+                    <div className="bg-[#FAF8F5] px-4 py-3.5 rounded-xl border border-[#EFECE5]">
+                      <div className="text-xs text-[#6B7280] font-medium">培训后7天</div>
+                      <div className="mt-2 text-2xl sm:text-3xl font-bold font-mono text-[#111827] tabular-nums">
+                        {activeCycle.postSales !== null
+                          ? `${activeCycle.postSales.toLocaleString()} PCS`
+                          : '--'}
+                      </div>
+                    </div>
+
+                    <div className="bg-[#FAF8F5] px-4 py-3.5 rounded-xl border border-[#EFECE5]">
+                      <div className="text-xs text-[#6B7280] font-medium">销量变化</div>
+                      <div className={`mt-2 text-2xl sm:text-3xl font-bold font-mono tabular-nums ${changeColorClass}`}>
+                        {activeCycle.status === 'COMPLETE' && activeCycle.changeRate !== null
+                          ? formatRate(activeCycle.changeRate)
+                          : '--'}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 底部一行小字展示日期范围及培训周期 */}
+                  <div className="text-xs text-[#6B7280] font-mono">
+                    培训周期 {formatMD(activeCycle.startDate)}—{formatMD(activeCycle.endDate)}，培训前 {formatMD(activeCycle.preStartDate)}—{formatMD(activeCycle.preEndDate)}，培训后 {formatMD(activeCycle.postStartDate)}—{formatMD(activeCycle.postEndDate)}
+                    {incompleteHintText ? `（${incompleteHintText}）` : ''}
+                  </div>
                 </div>
-                <div className="flex items-baseline gap-2 mt-2">
-                  <span className="text-3xl font-bold font-mono text-[#7C3AED] tabular-nums">
-                    {rowStats.examPassRate}%
-                  </span>
-                </div>
-                <div className="w-full bg-[#E5E1D8] h-1.5 rounded-full overflow-hidden mt-2">
-                  <div
-                    style={{ width: `${rowStats.examPassRate}%` }}
-                    className="bg-[#7C3AED] h-full rounded-full transition-all"
-                  />
-                </div>
-                <div className="text-[11px] text-[#6B7280] mt-1.5">
-                  专项理论考核及格达标比率
-                </div>
-              </div>
-            </div>
+              );
+            })()}
           </div>
         )}
       </div>
