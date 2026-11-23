@@ -187,6 +187,49 @@ export interface RegionalBrandMatrixCell {
   perCapitaSales: RegionalMetricCellValue;
 }
 
+export type HeroOrgRole = 'HQ' | 'RGM' | 'MT' | 'RT';
+
+export type HeroDrillLevel = 'NATIONAL' | 'RGM' | 'MT' | 'RT';
+
+export interface HeroMtNode {
+  mtId: string;
+  mtName: string;
+  titleLabel: string;
+  rgmId: RgmRegionKey;
+  hasRtChildren: boolean;
+}
+
+export interface HeroRtNode {
+  rtId: string;
+  rtName: string;
+  titleLabel: string;
+  mtId: string;
+  rgmId: RgmRegionKey;
+}
+
+export interface RegionalMatrixBASummary {
+  totalBAs: number | null;
+  participatedBAs: number | null;
+  unparticipatedBAs: number | null;
+}
+
+export interface RegionalMatrixBreadcrumbItem {
+  level: HeroDrillLevel;
+  id: string;
+  label: string;
+  clickable: boolean;
+}
+
+export interface RegionalMatrixQueryContext {
+  role: HeroOrgRole;
+  level: HeroDrillLevel;
+  selectedRgmId?: RgmRegionKey;
+  selectedMtId?: string;
+  ownedRgmId: RgmRegionKey;
+  ownedMtId: string;
+  ownedRtId: string;
+}
+
 export interface RegionalBrandMatrixColumn {
   brandKey: MatrixBrandKey;
   brandLabel: string;
@@ -198,8 +241,17 @@ export interface RegionalBrandMatrixColumn {
 }
 
 export interface RegionalBrandMatrixRow {
-  rgm: HeroRgmRegion;
+  nodeId: string;
+  nodeName: string;
+  nodeSubLabel?: string;
+  nodeLevel: 'RGM' | 'MT' | 'RT';
+  canDrillDown: boolean;
+  isOwnOrg?: boolean;
+  rgm?: HeroRgmRegion;
+  mt?: HeroMtNode;
+  rt?: HeroRtNode;
   effectiveBACount: number;
+  baSummary?: RegionalMatrixBASummary;
   cells: Record<MatrixBrandKey, RegionalBrandMatrixCell>;
 }
 
@@ -209,6 +261,15 @@ export interface RegionalBrandMatrixResponse {
   currentEndDate: string;
   previousStartDate: string;
   previousEndDate: string;
+  role: HeroOrgRole;
+  level: HeroDrillLevel;
+  currentOrgName: string;
+  childCount: number;
+  childUnitLabel: string;
+  isEmptyState: boolean;
+  emptyMessage?: string;
+  breadcrumbs: RegionalMatrixBreadcrumbItem[];
+  baSummary?: RegionalMatrixBASummary;
   columns: RegionalBrandMatrixColumn[];
   rows: RegionalBrandMatrixRow[];
 }

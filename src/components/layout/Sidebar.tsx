@@ -62,8 +62,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
 }) => {
   const isSparringActive =
     currentSection === 'digital-humans' || currentSection === 'scenario-scripts';
-  const isNationalActive = currentSection === 'dashboard' && rolePerspective === 'HQ';
-  const isRegionalActive = currentSection === 'dashboard' && rolePerspective !== 'HQ';
+  const isProductsGroupActive =
+    currentSection === 'products' ||
+    currentSection === 'ai-recommendations' ||
+    currentSection === 'cross-selling';
+  const isNationalActive =
+    (currentSection === 'dashboard' || currentSection === 'hero-products') &&
+    rolePerspective === 'HQ';
+  const isRegionalActive =
+    (currentSection === 'dashboard' || currentSection === 'hero-products') &&
+    rolePerspective !== 'HQ';
   return (
     <aside className="w-64 bg-[#1E1F24] text-[#A0A4AE] flex flex-col shrink-0 h-screen select-none border-r border-[#2A2B32]">
       {/* Brand Logo Header matching screenshot */}
@@ -96,13 +104,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
             onSelectSection('dashboard');
             onChangePerspective?.('HQ');
           }}
-          className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors cursor-pointer ${
+          className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all cursor-pointer ${
             isNationalActive
-              ? 'bg-[#282A32] text-white font-medium'
+              ? 'bg-[#9E4A2B] text-white font-semibold shadow-xs'
               : 'text-[#9CA3AF] hover:bg-[#282A32] hover:text-gray-200'
           }`}
         >
-          <BarChart3 className="w-4 h-4" />
+          <BarChart3 className={`w-4 h-4 ${isNationalActive ? 'text-white' : ''}`} />
           <span>全国数据</span>
         </button>
 
@@ -139,16 +147,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
           onClick={() => {
             onSelectSection('dashboard');
             onChangePerspective?.(
-              rolePerspective === 'REGIONAL_MT_RT' ? 'REGIONAL_MT_RT' : 'REGIONAL_RGM'
+              rolePerspective === 'REGIONAL_MT_RT' ||
+                rolePerspective === 'REGIONAL_MT' ||
+                rolePerspective === 'REGIONAL_RT'
+                ? rolePerspective
+                : 'REGIONAL_RGM'
             );
           }}
-          className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-colors cursor-pointer ${
+          className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all cursor-pointer ${
             isRegionalActive
-              ? 'bg-[#282A32] text-white font-medium'
+              ? 'bg-[#9E4A2B] text-white font-semibold shadow-xs'
               : 'text-[#9CA3AF] hover:bg-[#282A32] hover:text-gray-200'
           }`}
         >
-          <Building2 className="w-4 h-4" />
+          <Building2 className={`w-4 h-4 ${isRegionalActive ? 'text-white' : ''}`} />
           <span>区域数据</span>
         </button>
 
@@ -192,13 +204,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
             className={`w-full flex items-center justify-between px-3 py-2 rounded-lg transition-all font-medium cursor-pointer ${
               currentSection === 'products'
                 ? 'bg-[#9E4A2B] text-white shadow-sm font-semibold'
-                : currentSection === 'ai-recommendations'
+                : isProductsGroupActive
                 ? 'bg-[#282A32] text-white'
-                : 'text-white hover:bg-[#282A32] hover:text-white'
+                : 'text-[#9CA3AF] hover:bg-[#282A32] hover:text-white'
             }`}
           >
             <div className="flex items-center gap-3">
-              <Package className={`w-4 h-4 ${currentSection === 'products' ? 'text-white' : 'text-[#E26A3B]'}`} />
+              <Package className={`w-4 h-4 ${currentSection === 'products' ? 'text-white' : isProductsGroupActive ? 'text-[#E26A3B]' : ''}`} />
               <span>产品管理</span>
             </div>
             <div className="flex items-center gap-1.5">

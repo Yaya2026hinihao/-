@@ -21,6 +21,7 @@ import {
 import {
   HeroProductItem,
   HeroProductFilterState,
+  HeroDrillLevel,
   MonthKey,
   BrandKey,
   RegionKey
@@ -34,11 +35,13 @@ import {
   computeHeroProductRowStats
 } from '../../data/mockHeroProducts';
 import { RegionalBrandMatrix } from './RegionalBrandMatrix';
+import { UserRolePerspective } from '../layout/Header';
 
 interface HeroProductListViewProps {
   filter: HeroProductFilterState;
   onChangeFilter: (newFilter: HeroProductFilterState) => void;
   onSelectProduct: (product: HeroProductItem) => void;
+  rolePerspective?: UserRolePerspective;
   isId?: boolean;
 }
 
@@ -48,9 +51,17 @@ export const HeroProductListView: React.FC<HeroProductListViewProps> = ({
   filter,
   onChangeFilter,
   onSelectProduct,
+  rolePerspective = 'HQ',
   isId = false,
 }) => {
   const [currentPage, setCurrentPage] = useState(1);
+  const [matrixDrillLevel, setMatrixDrillLevel] = useState<HeroDrillLevel>(() => {
+    if (rolePerspective === 'REGIONAL_MT' || rolePerspective === 'REGIONAL_MT_RT') return 'RGM';
+    if (rolePerspective === 'REGIONAL_RT') return 'RT';
+    return 'NATIONAL';
+  });
+
+  const showProductOverview = matrixDrillLevel === 'NATIONAL';
 
   // 筛选后的大单品列表
   const filteredProducts = useMemo(() => {
@@ -94,9 +105,11 @@ export const HeroProductListView: React.FC<HeroProductListViewProps> = ({
             <h1 className="text-xl font-bold text-[#111827] tracking-tight">
               {isId ? 'Papan Produk Utama' : '大单品看板'}
             </h1>
-            <span className="text-xs bg-[#9E4A2B]/10 text-[#9E4A2B] font-semibold px-2.5 py-0.5 rounded-full border border-[#9E4A2B]/20">
-              {filteredProducts.length} 款大单品
-            </span>
+            {showProductOverview && (
+              <span className="text-xs bg-[#9E4A2B]/10 text-[#9E4A2B] font-semibold px-2.5 py-0.5 rounded-full border border-[#9E4A2B]/20">
+                {filteredProducts.length} 款大单品
+              </span>
+            )}
           </div>
           <p className="text-xs text-[#6B7280] mt-1">
             {isId
@@ -105,22 +118,24 @@ export const HeroProductListView: React.FC<HeroProductListViewProps> = ({
           </p>
         </div>
 
-        {/* Global Summary Badge */}
-        <div className="flex items-center gap-3 bg-white p-3 rounded-2xl border border-[#E8E6E1] shadow-2xs self-start md:self-auto">
-          <div className="text-right">
-            <div className="text-[10px] text-[#6B7280] font-medium">当前范围去重任务总数</div>
-            <div className="text-sm font-bold font-mono text-[#9E4A2B]">
-              {dynamicOverview.taskCount} <span className="text-[11px] font-normal text-[#6B7280]">个</span>
+        {/* Global Summary Badge (仅在最初的大单品看板总览页展示) */}
+        {showProductOverview && (
+          <div className="flex items-center gap-3 bg-white p-3 rounded-2xl border border-[#E8E6E1] shadow-2xs self-start md:self-auto">
+            <div className="text-right">
+              <div className="text-[10px] text-[#6B7280] font-medium">当前范围去重任务总数</div>
+              <div className="text-sm font-bold font-mono text-[#9E4A2B]">
+                {dynamicOverview.taskCount} <span className="text-[11px] font-normal text-[#6B7280]">个</span>
+              </div>
+            </div>
+            <div className="h-7 w-px bg-[#E5E1D8]" />
+            <div className="text-right">
+              <div className="text-[10px] text-[#6B7280] font-medium">当前周期实际 SELL OUT</div>
+              <div className="text-sm font-bold font-mono text-[#059669]">
+                {dynamicOverview.totalSellOut.toLocaleString()} <span className="text-[11px] font-normal text-[#6B7280]">件</span>
+              </div>
             </div>
           </div>
-          <div className="h-7 w-px bg-[#E5E1D8]" />
-          <div className="text-right">
-            <div className="text-[10px] text-[#6B7280] font-medium">当前周期实际 SELL OUT</div>
-            <div className="text-sm font-bold font-mono text-[#059669]">
-              {dynamicOverview.totalSellOut.toLocaleString()} <span className="text-[11px] font-normal text-[#6B7280]">件</span>
-            </div>
-          </div>
-        </div>
+        )}
       </div>
 
       {/* 2. Top Filter Bar (复用唯一筛选区：统计周期[本周/本月/自定义]、品牌、大区 + 关键字搜索) */}
@@ -249,20 +264,22 @@ export const HeroProductListView: React.FC<HeroProductListViewProps> = ({
             </div>
           </div>
 
-          {/* 搜索框 */}
-          <div className="relative w-full lg:w-64">
-            <Search className="w-4 h-4 text-[#9CA3AF] absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder="搜索大单品名称或SKU..."
-              value={filter.searchKeyword}
-              onChange={(e) => {
-                onChangeFilter({ ...filter, searchKeyword: e.target.value });
-                setCurrentPage(1);
-              }}
-              className="w-full pl-9 pr-3 py-1.5 bg-[#FAF8F5] border border-[#E5E1D8] rounded-xl text-xs text-[#111827] focus:outline-hidden focus:ring-1 focus:ring-[#9E4A2B]"
-            />
-          </div>
+          {/* 搜索框（仅在展示大单品列表时显示） */}
+          {showProductOverview && (
+            <div className="relative w-full lg:w-64">
+              <Search className="w-4 h-4 text-[#9CA3AF] absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder="搜索大单品名称或SKU..."
+                value={filter.searchKeyword}
+                onChange={(e) => {
+                  onChangeFilter({ ...filter, searchKeyword: e.target.value });
+                  setCurrentPage(1);
+                }}
+                className="w-full pl-9 pr-3 py-1.5 bg-[#FAF8F5] border border-[#E5E1D8] rounded-xl text-xs text-[#111827] focus:outline-hidden focus:ring-1 focus:ring-[#9E4A2B]"
+              />
+            </div>
+          )}
         </div>
 
         {/* 统计提示条 */}
@@ -270,24 +287,28 @@ export const HeroProductListView: React.FC<HeroProductListViewProps> = ({
           <div className="flex items-center gap-1.5">
             <Info className="w-3.5 h-3.5 text-[#9E4A2B]" />
             <span>
-              筛选条件对全国区域表现矩阵、培训任务、BA覆盖及 SELL OUT 销量联动生效。
-              {filter.region === 'ALL'
-                ? '当前展示全国全部 14 个 RGM 区域数据。'
-                : `当前展示 ${
-                    HERO_RGM_REGIONS.find(r => r.rgmId === filter.region)?.rgmName || filter.region
-                  } 专属区域数据。`}
+              筛选条件对全国区域表现矩阵联动生效
+              {showProductOverview ? '，并与下方大单品列表同步更新。' : '。'}
             </span>
           </div>
-          <span className="font-mono text-[#9CA3AF]">
-            共找到 {filteredProducts.length} 款符合条件产品
-          </span>
+          {showProductOverview && (
+            <span className="font-mono text-[#9CA3AF]">
+              共找到 {filteredProducts.length} 款符合条件产品
+            </span>
+          )}
         </div>
       </div>
 
-      {/* 3. 新增模块：全国区域培训与销售表现（放在筛选区下方、大单品列表上方） */}
-      <RegionalBrandMatrix filter={filter} isId={isId} />
+      {/* 3. 新增模块：全国区域培训与销售表现（支持 HQ -> RGM -> MT -> RT 组织下钻与权限控制） */}
+      <RegionalBrandMatrix
+        filter={filter}
+        rolePerspective={rolePerspective}
+        onDrillLevelChange={setMatrixDrillLevel}
+        isId={isId}
+      />
 
-      {/* 4. Main Hero Products Table (每个产品一行，原有字段及逻辑完整保留) */}
+      {/* 4. Main Hero Products Table (仅在最初的大单品看板总览页展示；点击 RGM/MT/RT 逐级下钻后隐藏) */}
+      {showProductOverview && (
       <div className="bg-white rounded-2xl border border-[#E8E6E1] shadow-2xs overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-xs min-w-[850px]">
@@ -491,6 +512,7 @@ export const HeroProductListView: React.FC<HeroProductListViewProps> = ({
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 };

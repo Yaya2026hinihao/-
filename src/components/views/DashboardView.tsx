@@ -91,18 +91,34 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   const [rankingChannel, setRankingChannel] = useState<ChannelType>('offline');
   const [rankingTabIndex, setRankingTabIndex] = useState<number>(0);
 
-  // 视角判定
+  // 视角判定（HQ / RGM / MT / RT 独立区分）
   const isNational = rolePerspective === 'HQ';
   const isRGM = rolePerspective === 'REGIONAL_RGM' || rolePerspective === 'REGIONAL_JAKARTA';
-  const isMT_RT = rolePerspective === 'REGIONAL_MT_RT';
+  const isMT = rolePerspective === 'REGIONAL_MT' || rolePerspective === 'REGIONAL_MT_RT';
+  const isRT = rolePerspective === 'REGIONAL_RT';
 
-  // 是否展示主播数据（全国管理者和区域RGM展示，区域MT/RT不展示主播）
+  // 是否展示主播数据（全国管理者和区域RGM展示，区域MT与区域RT不展示主播）
   const showHostMetrics = isNational || isRGM;
 
-  // 当前人员统计数据
+  // 当前人员统计数据（根据 HQ / RGM / MT / RT 权限范围区分展示）
+  const baseRegional = REGIONAL_DATA_MAP[selectedRegion] || REGIONAL_DATA_MAP.Jakarta;
   const personnel: PersonnelStats = isNational
     ? NATIONAL_DATA
-    : REGIONAL_DATA_MAP[selectedRegion] || REGIONAL_DATA_MAP.Jakarta;
+    : isMT
+    ? {
+        baTotal: selectedRegion === 'Jakarta' ? 33 : 28,
+        baActivated: selectedRegion === 'Jakarta' ? 30 : 25,
+        hostTotal: 0,
+        hostActivated: 0,
+      }
+    : isRT
+    ? {
+        baTotal: selectedRegion === 'Jakarta' ? 11 : 9,
+        baActivated: selectedRegion === 'Jakarta' ? 10 : 8,
+        hostTotal: 0,
+        hostActivated: 0,
+      }
+    : baseRegional;
 
   const baUnactivated = personnel.baTotal - personnel.baActivated;
   const hostUnactivated = personnel.hostTotal - personnel.hostActivated;
@@ -122,10 +138,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               {isId
                 ? isNational
                   ? 'Ringkasan Pelatihan Nasional'
-                  : `Data Regional (${selectedRegion})`
+                  : isMT
+                  ? `Data MT (${selectedRegion})`
+                  : isRT
+                  ? `Data RT (${selectedRegion})`
+                  : `Data RGM (${selectedRegion})`
                 : isNational
                 ? '全国培训概览'
-                : `区域数据 (${selectedRegion})`}
+                : isMT
+                ? `区域数据 · MT (${selectedRegion})`
+                : isRT
+                ? `区域数据 · RT (${selectedRegion})`
+                : `区域数据 · RGM (${selectedRegion})`}
             </h1>
 
             {/* 区域视角下的切换城市 */}
@@ -201,9 +225,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             </button>
           </div>
 
-          {/* 角色与口径快速切换器 */}
+          {/* 演示角色快速切换器（正式环境由登录账号角色决定） */}
           {onChangePerspective && (
-            <div className="flex items-center bg-[#F4F2EE] p-0.5 rounded-lg border border-[#E5E1D8] text-xs">
+            <div
+              className="flex items-center bg-[#F4F2EE] p-0.5 rounded-lg border border-[#E5E1D8] text-xs"
+              title="演示环境用于切换不同登录账号角色；正式环境按账号角色自动锁定权限"
+            >
+              <span className="px-2 text-[10px] text-[#9CA3AF] font-medium hidden xl:inline">
+                演示角色:
+              </span>
               <button
                 onClick={() => onChangePerspective('HQ')}
                 className={`px-2.5 py-1 rounded-md font-medium transition-all flex items-center gap-1 cursor-pointer ${
@@ -211,10 +241,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     ? 'bg-white text-[#9E4A2B] shadow-xs font-semibold'
                     : 'text-[#6B7280] hover:text-[#1F2937]'
                 }`}
-                title="全国数据：展示全国BA及主播数据"
+                title="总部 HQ：可查看全国及全部下级组织"
               >
                 <Globe className="w-3.5 h-3.5" />
-                <span>{isId ? 'Nasional (HQ)' : '全国 (HQ)'}</span>
+                <span>{isId ? 'HQ' : '总部 HQ'}</span>
               </button>
 
               <button
@@ -224,23 +254,36 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     ? 'bg-white text-[#9E4A2B] shadow-xs font-semibold'
                     : 'text-[#6B7280] hover:text-[#1F2937]'
                 }`}
-                title="区域RGM：展示区域BA及主播数据"
+                title="区域 RGM：可查看全国14个RGM，仅可下钻本人负责区域"
               >
                 <Building2 className="w-3.5 h-3.5" />
-                <span>{isId ? 'Regional RGM' : '区域 RGM'}</span>
+                <span>{isId ? 'RGM' : '区域 RGM'}</span>
               </button>
 
               <button
-                onClick={() => onChangePerspective('REGIONAL_MT_RT')}
+                onClick={() => onChangePerspective('REGIONAL_MT')}
                 className={`px-2.5 py-1 rounded-md font-medium transition-all flex items-center gap-1 cursor-pointer ${
-                  isMT_RT
+                  isMT
                     ? 'bg-white text-[#9E4A2B] shadow-xs font-semibold'
                     : 'text-[#6B7280] hover:text-[#1F2937]'
                 }`}
-                title="区域MT/RT：只管BA不管主播，仅展示BA数据"
+                title="区域 MT：仅查看所属RGM内MT，仅可下钻本人管理MT"
               >
                 <Users className="w-3.5 h-3.5" />
-                <span>{isId ? 'Regional MT/RT' : '区域 MT/RT'}</span>
+                <span>{isId ? 'MT' : '区域 MT'}</span>
+              </button>
+
+              <button
+                onClick={() => onChangePerspective('REGIONAL_RT')}
+                className={`px-2.5 py-1 rounded-md font-medium transition-all flex items-center gap-1 cursor-pointer ${
+                  isRT
+                    ? 'bg-white text-[#9E4A2B] shadow-xs font-semibold'
+                    : 'text-[#6B7280] hover:text-[#1F2937]'
+                }`}
+                title="区域 RT：仅查看本人授权范围RT汇总数据，不可下钻BA明细"
+              >
+                <UserCheck className="w-3.5 h-3.5" />
+                <span>{isId ? 'RT' : '区域 RT'}</span>
               </button>
             </div>
           )}

@@ -124,7 +124,10 @@ export default function App() {
   // Breadcrumbs calculation
   const getBreadcrumbs = () => {
     const isHQ = rolePerspective === 'HQ';
-    const isMTRT = rolePerspective === 'REGIONAL_MT_RT';
+    const isMT =
+      rolePerspective === 'REGIONAL_MT_RT' ||
+      rolePerspective === 'REGIONAL_MT';
+    const isRT = rolePerspective === 'REGIONAL_RT';
     const list: string[] = [isHQ ? '全国数据' : '区域数据'];
 
     if (currentSection === 'products') {
@@ -135,8 +138,10 @@ export default function App() {
     } else if (currentSection === 'dashboard') {
       if (isHQ) {
         list.push('全国培训概览');
-      } else if (isMTRT) {
-        list.push('Jakarta 区域概览 (MT/RT 专柜BA)');
+      } else if (isMT) {
+        list.push('Jakarta 区域概览 (MT · 培训经理)');
+      } else if (isRT) {
+        list.push('Jakarta 区域概览 (RT · 区域培训师)');
       } else {
         list.push('Jakarta 区域概览 (RGM 全盘)');
       }
@@ -372,11 +377,13 @@ export default function App() {
           onChangePerspective={(role) => {
             setRolePerspective(role);
             if (role === 'HQ') {
-              showToast('已切换至【全国数据 (HQ)】：展示全国BA与主播总数及激活情况');
-            } else if (role === 'REGIONAL_MT_RT') {
-              showToast('已切换至【区域 MT/RT 视角】：专注专柜BA培训对练，隐藏主播指标');
+              showToast('已切换至【总部 HQ 视角】：拥有全国14个RGM及下属MT/RT完整查看与下钻权限');
+            } else if (role === 'REGIONAL_MT' || role === 'REGIONAL_MT_RT') {
+              showToast('已切换至【区域 MT 视角】：查看所属RGM下全部MT，仅可点击自己管理的MT下钻至RT');
+            } else if (role === 'REGIONAL_RT') {
+              showToast('已切换至【区域 RT 视角】：仅查看自己授权范围内的RT汇总数据与BA参与统计');
             } else {
-              showToast('已切换至【区域 RGM 视角】：展示区域BA与主播总数及激活情况');
+              showToast('已切换至【区域 RGM 视角】：可查看全国14个RGM，仅可点击自己负责区域下钻');
             }
           }}
           currentSection={currentSection}
@@ -506,6 +513,7 @@ export default function App() {
                     filter={heroProductFilter}
                     onChangeFilter={setHeroProductFilter}
                     onSelectProduct={(p) => setSelectedHeroProduct(p)}
+                    rolePerspective={rolePerspective}
                   />
                 )}
               </>

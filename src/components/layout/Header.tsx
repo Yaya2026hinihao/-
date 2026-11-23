@@ -23,7 +23,9 @@ import { NavSection } from './Sidebar';
 export type UserRolePerspective =
   | 'HQ' // 可以看到全国数据的人 (全国BA总数、全国已激活BA数；全国主播总数、全国已激活主播数)
   | 'REGIONAL_RGM' // 区域RGM 可以看到区域总数据的人 (区域BA总数、区域已激活BA数；区域主播总数、区域已激活主播数)
-  | 'REGIONAL_MT_RT' // 区域MT和RT 只管BA不管主播 (区域BA总数、区域已激活BA数)
+  | 'REGIONAL_MT' // 区域MT 只管BA不管主播，默认查看所属RGM下全部MT，可下钻自己管理的RT
+  | 'REGIONAL_RT' // 区域RT 只管BA不管主播，仅查看自己授权范围内的RT统计
+  | 'REGIONAL_MT_RT' // 兼容旧值
   | 'REGIONAL_JAKARTA' // 兼容旧值
   | 'REGIONAL_BANDUNG'; // 兼容旧值
 
@@ -47,7 +49,8 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const isHQ = rolePerspective === 'HQ';
   const isRGM = rolePerspective === 'REGIONAL_RGM' || rolePerspective === 'REGIONAL_JAKARTA';
-  const isMTRT = rolePerspective === 'REGIONAL_MT_RT';
+  const isMT = rolePerspective === 'REGIONAL_MT' || rolePerspective === 'REGIONAL_MT_RT';
+  const isRT = rolePerspective === 'REGIONAL_RT';
 
   return (
     <header className="bg-white border-b border-[#E8E6E1] shrink-0 shadow-[0_1px_2px_rgba(0,0,0,0.03)] z-10 flex flex-col">
@@ -75,8 +78,14 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Right: Actions, Role Switcher, Utilities, Profile */}
         <div className="flex items-center gap-3">
-          {/* Role Perspective Selector: HQ vs Regional RGM vs Regional MT/RT */}
-          <div className="flex items-center bg-[#F4F2EE] rounded-lg p-0.5 border border-[#E5E1D8]">
+          {/* Demo Role Switcher: HQ / RGM / MT / RT (Production binds to logged-in account role) */}
+          <div
+            className="flex items-center bg-[#F4F2EE] rounded-lg p-0.5 border border-[#E5E1D8]"
+            title="演示用账号角色切换（正式环境按登录账号角色自动锁定权限）"
+          >
+            <span className="px-2 text-[10px] text-[#9CA3AF] font-medium hidden xl:inline">
+              演示账号:
+            </span>
             <button
               onClick={() => onChangePerspective('HQ')}
               className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${
@@ -84,10 +93,10 @@ export const Header: React.FC<HeaderProps> = ({
                   ? 'bg-white text-[#9E4A2B] shadow-xs font-semibold'
                   : 'text-[#6B7280] hover:text-[#1F2937]'
               }`}
-              title="全国数据：展示全国BA总数、已激活BA数，全国主播总数、已激活主播数"
+              title="HQ总部：拥有全国14个RGM及下属MT/RT完整查看与下钻权限"
             >
               <Globe className="w-3.5 h-3.5" />
-              <span>全国管理者 (HQ)</span>
+              <span>总部 HQ</span>
             </button>
 
             <button
@@ -97,23 +106,36 @@ export const Header: React.FC<HeaderProps> = ({
                   ? 'bg-white text-[#9E4A2B] shadow-xs font-semibold'
                   : 'text-[#6B7280] hover:text-[#1F2937]'
               }`}
-              title="区域RGM：展示区域BA总数、已激活BA数，区域主播总数、已激活主播数"
+              title="区域RGM：可查看全国14个RGM，仅可点击自己负责区域下钻至MT/RT"
             >
               <Building2 className="w-3.5 h-3.5" />
-              <span>区域 RGM (含主播)</span>
+              <span>区域 RGM</span>
             </button>
 
             <button
-              onClick={() => onChangePerspective('REGIONAL_MT_RT')}
+              onClick={() => onChangePerspective('REGIONAL_MT')}
               className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${
-                isMTRT
+                isMT
                   ? 'bg-white text-[#9E4A2B] shadow-xs font-semibold'
                   : 'text-[#6B7280] hover:text-[#1F2937]'
               }`}
-              title="区域MT/RT：只管BA不管主播，仅展示区域BA总数、已激活BA数"
+              title="区域MT：默认查看所属RGM下全部MT，仅可点击自己管理的MT下钻至RT"
             >
               <Users className="w-3.5 h-3.5" />
-              <span>区域 MT/RT (仅BA)</span>
+              <span>区域 MT</span>
+            </button>
+
+            <button
+              onClick={() => onChangePerspective('REGIONAL_RT')}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-all cursor-pointer ${
+                isRT
+                  ? 'bg-white text-[#9E4A2B] shadow-xs font-semibold'
+                  : 'text-[#6B7280] hover:text-[#1F2937]'
+              }`}
+              title="区域RT：仅查看自己授权范围内的RT汇总指标与BA统计，不可下钻BA明细"
+            >
+              <UserCheck className="w-3.5 h-3.5" />
+              <span>区域 RT</span>
             </button>
           </div>
 
@@ -146,9 +168,19 @@ export const Header: React.FC<HeaderProps> = ({
           {/* User Profile */}
           <div className="flex items-center gap-2 pl-2">
             <div className="w-7 h-7 rounded-full bg-[#9E4A2B] text-white text-xs font-semibold flex items-center justify-center">
-              Y
+              {isHQ ? 'Y' : isRGM ? 'A' : isMT ? 'P' : 'S'}
             </div>
-            <span className="text-xs font-medium text-[#374151]">yaya</span>
+            <div className="leading-tight">
+              <div className="text-xs font-medium text-[#374151]">
+                {isHQ
+                  ? 'yaya (HQ)'
+                  : isRGM
+                  ? 'Andi Wijaya (RGM)'
+                  : isMT
+                  ? 'Putri Kartika (MT)'
+                  : 'Agus Salim (RT)'}
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -164,7 +196,9 @@ export const Header: React.FC<HeaderProps> = ({
           <button
             onClick={() => onSelectSection && onSelectSection('products')}
             className={`px-3 py-1 rounded text-xs transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
-              currentSection === 'products' || currentSection === 'ai-recommendations'
+              currentSection === 'products' ||
+              currentSection === 'ai-recommendations' ||
+              currentSection === 'cross-selling'
                 ? 'bg-[#9E4A2B] text-white font-semibold shadow-2xs'
                 : 'bg-white border border-[#EAE6DD] text-[#4B5563] hover:text-[#111827] hover:bg-gray-50'
             }`}
@@ -212,17 +246,17 @@ export const Header: React.FC<HeaderProps> = ({
             <span>在线课件</span>
           </button>
 
-          {/* Tab: 全国数据 */}
+          {/* Tab: 全国数据 / 区域数据 */}
           <button
             onClick={() => onSelectSection && onSelectSection('dashboard')}
             className={`px-3 py-1 rounded text-xs transition-all flex items-center gap-1.5 cursor-pointer whitespace-nowrap ${
-              currentSection === 'dashboard'
+              currentSection === 'dashboard' || currentSection === 'hero-products'
                 ? 'bg-[#9E4A2B] text-white font-semibold shadow-2xs'
                 : 'bg-white border border-[#EAE6DD] text-[#4B5563] hover:text-[#111827] hover:bg-gray-50'
             }`}
           >
             <BarChart3 className="w-3.5 h-3.5" />
-            <span>全国数据</span>
+            <span>{isHQ ? '全国数据' : '区域数据'}</span>
           </button>
 
           {/* Tab: 智能巡检 */}
